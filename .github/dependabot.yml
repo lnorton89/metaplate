@@ -8,12 +8,12 @@ updates:
       day: monday
     open-pull-requests-limit: 10
     versioning-strategy: increase-if-necessary
-    # typescript-eslint 8 currently declares TypeScript <6.1 support. Keep
-    # Dependabot from reopening an unresolvable TypeScript 7 update until that
-    # peer range is expanded; revisit this alongside typescript-eslint updates.
+    # TypeScript 6 currently fails tsup's declaration build on its baseUrl
+    # deprecation, while typescript-eslint 8 supports only TypeScript <6.1.
+    # Revisit this alongside tsup and typescript-eslint updates.
     ignore:
       - dependency-name: typescript
-        versions: [">=7"]
+        versions: [">=6"]
     commit-message:
       prefix: build
       include: scope
