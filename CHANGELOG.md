@@ -5,6 +5,14 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-23
+
+### Fixed
+
+- Make route and image-path slash trimming linear-time, preventing maliciously
+  long inputs from causing polynomial regular-expression backtracking.
+- Allow cold native PNG initialization enough time on Windows CI runners.
+
 ## [0.1.0] - 2026-08-23
 
 ### Added
@@ -20,5 +28,6 @@ All notable changes to Metaplate are documented in this file. The project uses
 - Typed package exports for framework-neutral, rendering, Node.js, Next.js,
   font, and PNG entry points.
 
-[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/lnorton89/metaplate/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/lnorton89/metaplate/releases/tag/v0.1.0

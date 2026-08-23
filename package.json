@@ -1,6 +1,6 @@
 {
   "name": "metaplate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Composable, framework-neutral Open Graph image tooling for TypeScript.",
   "keywords": ["open-graph", "og-image", "nextjs", "social-image", "satori"],
   "license": "MIT",
