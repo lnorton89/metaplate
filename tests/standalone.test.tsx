@@ -47,12 +47,18 @@ it("renders SVG without Next.js", async () => {
   );
 });
 
-it("renders PNG bytes without Next.js", async () => {
-  const plate = createNodeOg(definition);
-  expect(plate.contentType).toBe("image/png");
-  const png = await plate.render({ title: "Node PNG" });
-  verifyPng(png, plate.size);
-});
+it(
+  "renders PNG bytes without Next.js",
+  async () => {
+    const plate = createNodeOg(definition);
+    expect(plate.contentType).toBe("image/png");
+    const png = await plate.render({ title: "Node PNG" });
+    verifyPng(png, plate.size);
+  },
+  // Loading the native renderer and fonts can exceed Vitest's five-second
+  // default on a cold Windows runner; warmed renders remain much faster.
+  20_000,
+);
 
 it("returns a Web Response usable by route-based frameworks", async () => {
   const plate = createNodeOg({
