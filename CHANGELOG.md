@@ -26,8 +26,9 @@ All notable changes to Metaplate are documented in this file. The project uses
   without a JSX toolchain, including Satori's rule that array children need an
   explicit `display`.
 - Warn that a page's `openGraph` replaces the layout's under Next's shallow
-  metadata merge, and show the composed shape in the README and the Next
-  example rather than a spread that drops layout-level fields.
+  metadata merge, and document a single `pageMetadata` composition in the
+  README and the Next example — including the per-route `url` and an explicit
+  `openGraph.title` — rather than a spread that drops layout-level fields.
 - Record the plate constraints that surprise consumers: an inlined SVG
   `<title>` renders as visible text, and the React accessibility rules that ask
   for one do not apply to a plate.
