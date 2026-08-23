@@ -24,6 +24,8 @@ export type SocialImageMetadata = {
 export type SocialImageOptions = {
   size?: ImageSize;
   imagePath?: string;
+  /** Deployment prefix such as a GitHub Pages repository path. */
+  basePath?: string;
 };
 
 function cleanPathPart(value: string): string {
@@ -41,7 +43,12 @@ function cleanPathPart(value: string): string {
 }
 
 /** Returns a stable, extension-free pathname suitable for a Next route handler. */
-export function socialImagePath(route: string, imagePath = "og-image"): string {
+export function socialImagePath(
+  route: string,
+  imagePath = "og-image",
+  basePath = "",
+): string {
+  const basePart = cleanPathPart(basePath);
   const routePart = cleanPathPart(route);
   const imagePart = cleanPathPart(imagePath);
 
@@ -49,7 +56,7 @@ export function socialImagePath(route: string, imagePath = "og-image"): string {
     throw new Error("imagePath must contain at least one non-slash character");
   }
 
-  return routePart ? `/${routePart}/${imagePart}` : `/${imagePart}`;
+  return `/${[basePart, routePart, imagePart].filter(Boolean).join("/")}`;
 }
 
 /** Builds the image object shared by Next Open Graph and Twitter metadata. */
@@ -60,7 +67,7 @@ export function socialImage(
 ): SocialImageDescriptor {
   const size = options.size ?? OG_SIZE;
   return {
-    url: socialImagePath(route, options.imagePath),
+    url: socialImagePath(route, options.imagePath, options.basePath),
     width: size.width,
     height: size.height,
     alt,

@@ -22,6 +22,7 @@ export type NextOgDefinition<Copy> = {
   alt: (copy: Copy) => string;
   size?: ImageSize;
   imagePath?: string;
+  basePath?: string;
   fonts?: FontLoader;
   response?: Omit<ImageResponseOptions, "width" | "height" | "fonts">;
 };
@@ -37,6 +38,7 @@ export type RenderOptions = {
 export function createNextOg<Copy>(definition: NextOgDefinition<Copy>) {
   const size = Object.freeze({ ...(definition.size ?? OG_SIZE) });
   const imagePath = definition.imagePath ?? "og-image";
+  const basePath = definition.basePath ?? "";
 
   async function render(copy: Copy, options: RenderOptions = {}) {
     const renderSize = options.size ?? size;
@@ -57,9 +59,9 @@ export function createNextOg<Copy>(definition: NextOgDefinition<Copy>) {
     render,
     handler: (copy: Copy) => () => render(copy),
     image: (route: string, copy: Copy) =>
-      socialImage(route, definition.alt(copy), { size, imagePath }),
+      socialImage(route, definition.alt(copy), { size, imagePath, basePath }),
     metadata: (route: string, copy: Copy) =>
-      socialImageMetadata(route, definition.alt(copy), { size, imagePath }),
+      socialImageMetadata(route, definition.alt(copy), { size, imagePath, basePath }),
   });
 }
 
