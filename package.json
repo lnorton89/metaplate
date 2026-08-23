@@ -1,26 +1,65 @@
 {
   "name": "metaplate",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Composable, framework-neutral Open Graph image tooling for TypeScript.",
-  "keywords": ["open-graph", "og-image", "nextjs", "social-image", "satori"],
+  "keywords": [
+    "open-graph",
+    "og-image",
+    "nextjs",
+    "social-image",
+    "satori"
+  ],
   "license": "MIT",
   "author": "Lawrence Norton",
   "type": "module",
   "sideEffects": false,
-  "engines": { "node": ">=20" },
-  "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" },
-    "./next": { "types": "./dist/next.d.ts", "import": "./dist/next.js", "default": "./dist/next.js" },
-    "./render": { "types": "./dist/render.d.ts", "import": "./dist/render.js", "default": "./dist/render.js" },
-    "./node": { "types": "./dist/node.d.ts", "import": "./dist/node.js", "default": "./dist/node.js" },
-    "./fonts": { "types": "./dist/fonts.d.ts", "import": "./dist/fonts.js", "default": "./dist/fonts.js" },
-    "./png": { "types": "./dist/png.d.ts", "import": "./dist/png.js", "default": "./dist/png.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js",
+      "default": "./dist/next.js"
+    },
+    "./render": {
+      "types": "./dist/render.d.ts",
+      "import": "./dist/render.js",
+      "default": "./dist/render.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./fonts": {
+      "types": "./dist/fonts.d.ts",
+      "import": "./dist/fonts.js",
+      "default": "./dist/fonts.js"
+    },
+    "./png": {
+      "types": "./dist/png.d.ts",
+      "import": "./dist/png.js",
+      "default": "./dist/png.js"
+    }
   },
-  "bin": { "metaplate": "./dist/cli.js" },
+  "bin": {
+    "metaplate": "./dist/cli.js"
+  },
   "scripts": {
     "build": "tsup",
     "check": "npm run lint && npm run typecheck && npm test && npm run build && npm pack --dry-run",
@@ -35,8 +74,12 @@
     "react": ">=18.2.0"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": true },
-    "react": { "optional": true }
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
@@ -55,7 +98,9 @@
     "typescript-eslint": "^8.41.0",
     "vitest": "^4.1.0"
   },
-  "overrides": { "esbuild": "^0.28.2" },
+  "overrides": {
+    "esbuild": "^0.28.2"
+  },
   "publishConfig": {
     "access": "public",
     "provenance": true,
@@ -65,6 +110,8 @@
     "type": "git",
     "url": "git+https://github.com/lnorton89/metaplate.git"
   },
-  "bugs": { "url": "https://github.com/lnorton89/metaplate/issues" },
+  "bugs": {
+    "url": "https://github.com/lnorton89/metaplate/issues"
+  },
   "homepage": "https://github.com/lnorton89/metaplate#readme"
 }
