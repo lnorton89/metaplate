@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { parseVerifyTargets, VERIFY_USAGE } from "../src/cli-args.js";
+import { formatVerifyPath, parseVerifyTargets, VERIFY_USAGE } from "../src/cli-args.js";
+
+it("keeps parent directories when files share a basename", () => {
+  expect(formatVerifyPath("out/docs/opengraph-image", "/workspace")).toBe(
+    "out/docs/opengraph-image",
+  );
+  expect(formatVerifyPath("out/reference/opengraph-image", "/workspace")).toBe(
+    "out/reference/opengraph-image",
+  );
+});
 
 describe("parseVerifyTargets", () => {
   it("applies one size to multiple files", () => {

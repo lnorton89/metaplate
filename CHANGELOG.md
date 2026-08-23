@@ -5,6 +5,11 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Changed
+
+- Show concise relative paths rather than ambiguous basenames in multi-file
+  verifier output.
+
 ## [0.1.2] - 2026-08-23
 
 ### Added
