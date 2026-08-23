@@ -22,6 +22,13 @@ describe("socialImagePath", () => {
   it("rejects an empty image path", () => {
     expect(() => socialImagePath("/docs", "///")).toThrow(/imagePath/);
   });
+
+  it("handles long slash-delimited input in linear time", () => {
+    const padding = "/".repeat(100_000);
+    expect(socialImagePath(`${padding}docs${padding}`, `${padding}card${padding}`)).toBe(
+      "/docs/card",
+    );
+  });
 });
 
 it("builds a standard image descriptor", () => {

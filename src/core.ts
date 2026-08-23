@@ -27,7 +27,17 @@ export type SocialImageOptions = {
 };
 
 function cleanPathPart(value: string): string {
-  return value.replace(/^\/+|\/+$/g, "");
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && value[start] === "/") {
+    start += 1;
+  }
+  while (end > start && value[end - 1] === "/") {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
 }
 
 /** Returns a stable, extension-free pathname suitable for a Next route handler. */
