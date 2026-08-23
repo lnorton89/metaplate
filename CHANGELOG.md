@@ -5,15 +5,6 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
-### Documentation
-
-- Recommend rendering into `public/` and describing the file with
-  `socialImageMetadata` for Next.js static exports under a `basePath`, and
-  record why `app/opengraph-image.tsx` cannot serve that deployment shape.
-- Document `createElement` as the build-script authoring form for projects
-  without a JSX toolchain, including Satori's rule that array children need an
-  explicit `display`.
-
 ## [0.2.0] - 2026-08-23
 
 ### Changed
@@ -25,6 +16,15 @@ All notable changes to Metaplate are documented in this file. The project uses
   a missing peer reports its install command instead of failing at import.
 - Show concise relative paths rather than ambiguous basenames in multi-file
   verifier output.
+
+### Documentation
+
+- Recommend rendering into `public/` and describing the file with
+  `socialImageMetadata` for Next.js static exports under a `basePath`, and
+  record why `app/opengraph-image.tsx` cannot serve that deployment shape.
+- Document `createElement` as the build-script authoring form for projects
+  without a JSX toolchain, including Satori's rule that array children need an
+  explicit `display`.
 
 ## [0.1.2] - 2026-08-23
 
