@@ -239,6 +239,7 @@ Keep the copy next to the page metadata:
 ```tsx
 // src/app/roadmap/page.tsx
 import { og } from "@/lib/og";
+import { openGraph } from "@/lib/metadata";
 
 export const copy = {
   eyebrow: "What comes next",
@@ -247,11 +248,28 @@ export const copy = {
   alt: "Project roadmap",
 };
 
+const social = og.metadata("/roadmap", copy);
+
 export const metadata = {
   title: copy.title,
   description: copy.description,
-  ...og.metadata("/roadmap", copy),
+  openGraph: { ...openGraph, ...social.openGraph },
+  twitter: social.twitter,
 };
+```
+
+Next shallow-merges metadata, so a page's `openGraph` **replaces** the root
+layout's rather than extending it. Spreading `og.metadata()` straight into a
+page therefore drops layout-level fields such as `siteName`, `type`, and
+`locale` from that page's tags. Nothing errors and the build stays green; the
+loss is visible only in the emitted HTML. Keep the shared fields in a module
+both the layout and each page can spread, as above.
+
+If a page sets no other Open Graph fields, and the layout does not either,
+spreading the whole result is still fine:
+
+```tsx
+export const metadata = { title: copy.title, ...og.metadata("/roadmap", copy) };
 ```
 
 Then expose the predictable route:
@@ -336,6 +354,25 @@ Satori needs real font bytes and accepts TTF, OTF, and WOFF, but not WOFF2.
 `packageFontLoader` reads faces from installed packages and walks upward through
 `node_modules`, so hoisted workspace dependencies work. It memoizes the bytes
 for repeated development requests.
+
+## Plate constraints
+
+A plate is a Satori layout that rasterises to an image, not a DOM tree. Three
+differences bite in practice:
+
+- **Inline SVG `<title>` renders as visible text.** Satori supports a subset of
+  SVG and lays out an unsupported element's children as text, so a `<title>`
+  inside an inlined logo prints the word across the mark. Leave it out: the
+  accessible name for a social card is the `alt` the plate already derives, and
+  an element inside a PNG is unreachable to assistive technology anyway.
+- **React accessibility lint rules do not apply.** Rules such as Biome's
+  `lint/a11y/noSvgWithoutTitle` or `jsx-a11y/*` are written for DOM SVG and will
+  ask for exactly the `<title>` above. Suppress them in the plate file rather
+  than satisfying them.
+- **Layout rules are Satori's, not the browser's.** Elements with more than one
+  child need an explicit `display`, as does any element whose `children` is an
+  array; see
+  [Authoring without a JSX toolchain](#authoring-without-a-jsx-toolchain).
 
 ## Static hosts
 

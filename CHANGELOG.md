@@ -25,6 +25,12 @@ All notable changes to Metaplate are documented in this file. The project uses
 - Document `createElement` as the build-script authoring form for projects
   without a JSX toolchain, including Satori's rule that array children need an
   explicit `display`.
+- Warn that a page's `openGraph` replaces the layout's under Next's shallow
+  metadata merge, and show the composed shape in the README and the Next
+  example rather than a spread that drops layout-level fields.
+- Record the plate constraints that surprise consumers: an inlined SVG
+  `<title>` renders as visible text, and the React accessibility rules that ask
+  for one do not apply to a plate.
 
 ## [0.1.2] - 2026-08-23
 
