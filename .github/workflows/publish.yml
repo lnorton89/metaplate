@@ -122,7 +122,12 @@ jobs:
           local_integrity=$(node -e \
             "const fs=require('node:fs'),c=require('node:crypto'); const b=fs.readFileSync(process.argv[1]); process.stdout.write('sha512-'+c.createHash('sha512').update(b).digest('base64'))" \
             "$archive")
-          remote_integrity=$(npm view "metaplate@$VERSION" dist.integrity --json 2>/dev/null | tr -d '"' || true)
+          # `npm view --json` writes an E404 object to stdout, so treating a
+          # non-empty string as a published version misclassifies the first
+          # release. Test the command status and request the plain value.
+          if ! remote_integrity=$(npm view "metaplate@$VERSION" dist.integrity 2>/dev/null); then
+            remote_integrity=""
+          fi
           if [[ -z "$remote_integrity" ]]; then
             echo "published=false" >> "$GITHUB_OUTPUT"
           elif [[ "$remote_integrity" == "$local_integrity" ]]; then
