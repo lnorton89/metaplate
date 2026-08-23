@@ -5,6 +5,8 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-23
+
 ### Changed
 
 - **Breaking:** Move `satori` and `@resvg/resvg-js` to optional peer
@@ -57,7 +59,8 @@ All notable changes to Metaplate are documented in this file. The project uses
 - Typed package exports for framework-neutral, rendering, Node.js, Next.js,
   font, and PNG entry points.
 
-[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lnorton89/metaplate/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/lnorton89/metaplate/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/lnorton89/metaplate/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/lnorton89/metaplate/releases/tag/v0.1.0
