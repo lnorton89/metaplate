@@ -1,3 +1,5 @@
+import path from "node:path";
+
 export const VERIFY_USAGE =
   "Usage: metaplate verify --size WIDTHxHEIGHT <file.png> [...] [--size WIDTHxHEIGHT <file.png> [...]]";
 
@@ -5,6 +7,12 @@ export type VerifyTarget = {
   file: string;
   size: { width: number; height: number };
 };
+
+/** Formats a stable, concise path for CLI logs, including duplicate basenames. */
+export function formatVerifyPath(file: string, cwd = process.cwd()): string {
+  const relative = path.relative(cwd, path.resolve(cwd, file));
+  return (relative || path.basename(file)).split(path.sep).join("/");
+}
 
 function parseSize(value: string | undefined) {
   const match = /^(\d+)x(\d+)$/.exec(value ?? "");
