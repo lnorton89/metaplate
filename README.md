@@ -1,5 +1,10 @@
 # Metaplate
 
+[![CI](https://github.com/lnorton89/metaplate/actions/workflows/ci.yml/badge.svg)](https://github.com/lnorton89/metaplate/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/lnorton89/metaplate/actions/workflows/codeql.yml/badge.svg)](https://github.com/lnorton89/metaplate/actions/workflows/codeql.yml)
+[![npm](https://img.shields.io/npm/v/metaplate)](https://www.npmjs.com/package/metaplate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Composable, framework-neutral Open Graph image tooling for TypeScript.
 
 Metaplate turns one branded JSX plate into a consistent image system: SVG and

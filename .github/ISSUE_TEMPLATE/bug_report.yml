@@ -1,0 +1,73 @@
+name: Bug report
+description: Report incorrect output, a crash, or unexpected package behavior
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please search existing issues before filing a new one. Never include secrets or private font files.
+
+  - type: input
+    id: version
+    attributes:
+      label: Metaplate version
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Node.js version, operating system, package manager, framework, and runtime or deployment target.
+      placeholder: |
+        Node.js: 22.19.0
+        OS: Windows 11
+        Package manager: npm 10
+        Framework/runtime: Next.js 16 on Node.js
+    validations:
+      required: true
+
+  - type: dropdown
+    id: entrypoint
+    attributes:
+      label: Affected entry point
+      options:
+        - metaplate
+        - metaplate/render
+        - metaplate/node
+        - metaplate/next
+        - metaplate/fonts
+        - metaplate/png
+        - metaplate CLI
+        - Unsure or multiple
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest code sample or repository that reproduces the issue and the exact command used.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the complete error message or describe the generated image. Attach a safe example image if useful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context

@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a new capability or an improvement to an existing one
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to accomplish, and what prevents it today?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Framework-neutral metadata
+        - SVG rendering
+        - Node.js PNG rendering
+        - Next.js adapter
+        - Font loading
+        - PNG verification
+        - CLI
+        - Documentation or examples
+        - Unsure or multiple
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API or behavior you would like, including a small usage example when possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or other designs have you tried?
