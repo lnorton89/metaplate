@@ -36,7 +36,7 @@ try {
   }
 
   for (const [entry, target] of Object.entries(manifest.exports)) {
-    for (const kind of ["types", "import"]) {
+    for (const kind of ["types", "import", "default"]) {
       const path = target[kind].replace(/^\.\//, "");
       if (!paths.has(path)) {
         throw new Error(`Package export ${entry} is missing its ${kind} file: ${path}`);
@@ -72,6 +72,19 @@ try {
     cwd: consumer,
     stdio: "inherit",
   });
+
+  const resolverSmoke = [
+    'require.resolve("metaplate");',
+    'require.resolve("metaplate/render");',
+    'require.resolve("metaplate/node");',
+    'require.resolve("metaplate/fonts");',
+    'require.resolve("metaplate/png");',
+  ].join("\n");
+  execFileSync(
+    process.execPath,
+    ["--input-type=commonjs", "--eval", resolverSmoke],
+    { cwd: consumer, stdio: "inherit" },
+  );
 
   const cli = spawnSync(
     process.execPath,
