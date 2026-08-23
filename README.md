@@ -129,6 +129,71 @@ import { og } from "./og.js";
 await writeFile("public/og.png", await og.render(copy));
 ```
 
+### Authoring without a JSX toolchain
+
+A plain `.mjs` build script has no JSX transform, and adding one to render a
+social card is rarely worth it. `component` accepts the element tree Satori
+walks, so `createElement` is enough:
+
+```js
+// scripts/build-og.mjs
+import { writeFile } from "node:fs/promises";
+import { createElement as h } from "react";
+import { packageFontLoader } from "metaplate/fonts";
+import { createNodeOg } from "metaplate/node";
+
+const og = createNodeOg({
+  alt: (copy) => copy.alt,
+  fonts: packageFontLoader([
+    {
+      name: "Inter",
+      package: "@fontsource/inter",
+      file: "files/inter-latin-700-normal.woff",
+      weight: 700,
+    },
+  ]),
+  component: (copy) =>
+    h(
+      "div",
+      {
+        style: {
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          background: "#111",
+          color: "#fff",
+          fontFamily: "Inter",
+          padding: 72,
+        },
+      },
+      h("div", { style: { fontSize: 32 } }, copy.eyebrow),
+      h("div", { style: { fontSize: 72 } }, copy.title),
+    ),
+});
+
+await writeFile("public/og-image.png", await og.render(copy));
+```
+
+Satori requires an explicit `display` on any element whose `children` is an
+array, including a single-element array. Pass a lone text child as a string,
+`h("div", style, "Roadmap")`, not `h("div", style, ["Roadmap"])`. The array
+form fails with:
+
+```
+Expected <div> to have explicit "display: flex", "display: contents",
+or "display: none" if it has more than one child node.
+```
+
+That message names the containing element and its child count, but the element
+to fix is the leaf holding the array. Scripts that build children
+programmatically should either spread the array into `createElement` or give
+that element an explicit `display`.
+
+The same tree can be written as plain `{ type, props }` objects when React is
+not installed at all, which is what the standalone package verification does.
+
 ### SVG-only rendering
 
 Use `createSvgOg` from `metaplate/render` when the consumer only needs SVG and
@@ -202,6 +267,9 @@ export const GET = og.handler(copy);
 
 For Next's `opengraph-image.tsx` convention, call `og.render(copy)` from the
 default export and re-export `og.size` and `og.contentType` as its constants.
+That convention assumes a root-deployed app; see
+[Next.js static export and `basePath`](#nextjs-static-export-and-basepath)
+before using it behind a deployment prefix.
 
 ## Metadata without a renderer
 
@@ -219,12 +287,25 @@ const metadata = socialImageMetadata("/", "Project home card", {
 
 ### Next.js static export and `basePath`
 
-For a branded image generated during `next build`, use Next's special
-`app/opengraph-image.tsx` file shown above and set `dynamic = "force-static"`.
-Next can prerender that `ImageResponse` when `output: "export"` is enabled.
+Next's special `app/opengraph-image.tsx` file suits a root-deployed app: set
+`dynamic = "force-static"` and Next prerenders the `ImageResponse` during
+`next build` with `output: "export"` enabled.
 
-If the image is generated outside Next and lives in `public`, use the
-framework-neutral metadata helper instead:
+Under a deployment `basePath`, that file still prerenders and the build still
+reports success, but the card is unusable for two independent reasons:
+
+- **The emitted file has no extension.** `out/opengraph-image` holds PNG bytes
+  with nothing to tell a static host so. The
+  [Static hosts](#static-hosts) section fixes that for route handlers with
+  per-path headers, which GitHub Pages project sites cannot set at all.
+- **The emitted metadata drops the prefix.** Next resolves special-file
+  metadata against `metadataBase` without applying `basePath`, so the tag reads
+  `https://example.github.io/opengraph-image` and 404s on a project site. The
+  build stays green, so this surfaces only once a crawler follows the link.
+
+Under `basePath`, render the card into `public/` during the build instead, as
+in [Authoring without a JSX toolchain](#authoring-without-a-jsx-toolchain), and
+describe the result with the framework-neutral metadata helper:
 
 ```ts
 // app/layout.tsx
@@ -243,9 +324,11 @@ export const metadata: Metadata = {
 };
 ```
 
-This emits `/project/og-image.png`; Next resolves it against `metadataBase`.
-Verify both `public/og-image.png` and the copied `out/og-image.png`, and inspect
-the exported HTML to confirm its social tags contain the deployment prefix.
+This emits `/project/og-image.png`, which Next resolves against
+`metadataBase` into
+`https://example.github.io/project/og-image.png`. Verify both
+`public/og-image.png` and the copied `out/og-image.png`, and inspect the
+exported HTML to confirm its social tags carry the deployment prefix.
 
 ## Fonts
 

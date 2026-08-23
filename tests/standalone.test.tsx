@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { expect, it } from "vitest";
 import { packageFontLoader } from "../src/fonts.js";
 import { createNodeOg } from "../src/node.js";
@@ -69,4 +70,31 @@ it("returns a Web Response usable by route-based frameworks", async () => {
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
   verifyPng(await response.arrayBuffer(), plate.size);
+});
+
+// The README documents `createElement` as the build-script authoring form for
+// projects without a JSX toolchain, including its lone-string-child rule.
+it("renders an element tree authored without JSX", async () => {
+  const plate = createSvgOg({
+    ...definition,
+    component: (copy: { title: string }) =>
+      createElement(
+        "div",
+        {
+          style: {
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            fontFamily: "Inter",
+          },
+        },
+        createElement("div", { style: { fontSize: 32 } }, "Eyebrow"),
+        createElement("div", { style: { fontSize: 64 } }, copy.title),
+      ),
+  });
+
+  const svg = await plate.renderSvg({ title: "No JSX" });
+  expect(svg).toMatch(/^<svg/);
+  expect(svg).toContain('width="1200"');
 });
