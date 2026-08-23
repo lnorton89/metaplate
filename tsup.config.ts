@@ -4,6 +4,8 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     next: "src/next.tsx",
+    render: "src/render.ts",
+    node: "src/node.ts",
     fonts: "src/fonts.ts",
     png: "src/png.ts",
     cli: "src/cli.ts",
@@ -13,5 +15,11 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   splitting: false,
-  external: ["next", "react", "react/jsx-runtime"],
+  external: [
+    "@resvg/resvg-js",
+    "next",
+    "react",
+    "react/jsx-runtime",
+    "satori",
+  ],
 });

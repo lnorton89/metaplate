@@ -1,7 +1,7 @@
 {
   "name": "metaplate",
   "version": "0.1.0",
-  "description": "Composable, verifiable Open Graph image tooling for Next.js.",
+  "description": "Composable, framework-neutral Open Graph image tooling for TypeScript.",
   "keywords": ["open-graph", "og-image", "nextjs", "social-image", "satori"],
   "license": "MIT",
   "author": "Lawrence Norton",
@@ -15,6 +15,8 @@
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./next": { "types": "./dist/next.d.ts", "import": "./dist/next.js" },
+    "./render": { "types": "./dist/render.d.ts", "import": "./dist/render.js" },
+    "./node": { "types": "./dist/node.d.ts", "import": "./dist/node.js" },
     "./fonts": { "types": "./dist/fonts.d.ts", "import": "./dist/fonts.js" },
     "./png": { "types": "./dist/png.d.ts", "import": "./dist/png.js" }
   },
@@ -35,8 +37,13 @@
     "next": { "optional": true },
     "react": { "optional": true }
   },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "satori": "^0.33.3"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
+    "@fontsource/inter": "^5.2.8",
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.0",
     "eslint": "^10.0.0",
