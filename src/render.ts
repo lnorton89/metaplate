@@ -1,11 +1,18 @@
 import type { ReactNode } from "react";
-import satori, { type Font, type SatoriOptions } from "satori";
+import type { Font, SatoriOptions } from "satori";
 import {
   OG_SIZE,
   socialImage,
   socialImageMetadata,
   type ImageSize,
 } from "./core.js";
+import { optionalPeer } from "./optional-peer.js";
+
+const loadSatori = optionalPeer(
+  { package: "satori", entries: "metaplate/render and metaplate/node" },
+  async (): Promise<typeof import("satori").default> =>
+    (await import("satori")).default,
+);
 
 export const SVG_CONTENT_TYPE = "image/svg+xml" as const;
 
@@ -37,6 +44,7 @@ export function createSvgOg<Copy>(definition: SvgOgDefinition<Copy>) {
 
   async function renderSvg(copy: Copy, options: SvgRenderOptions = {}) {
     const renderSize = options.size ?? size;
+    const satori = await loadSatori();
     const fonts = await definition.fonts();
     if (fonts.length === 0) {
       throw new Error("Standalone Metaplate renderers require at least one font");
