@@ -31,8 +31,11 @@ npm run check:package
 
 `npm run check` lints, type-checks, tests, builds, and inspects the npm package
 contents. `npm run check:package` goes further: it creates the tarball, checks
-that every declared export is present, installs it into a temporary consumer,
-and imports every framework-neutral public entry point.
+that every declared export is present, and installs it into two temporary
+consumers. The lean consumer imports every framework-neutral entry point, proves
+that no optional renderer peer was pulled in, and confirms the install guidance
+a peer-less render reports. The standalone consumer installs the renderer peers
+and renders real PNG bytes.
 
 Useful individual commands are:
 
@@ -47,8 +50,10 @@ npm run build
 
 - The root entry point stays framework-neutral. Do not make consumers load
   Next.js, React, Satori, or Resvg merely to construct metadata.
-- `next` and `react` remain optional peer dependencies. Test behavior both with
-  and without optional framework peers when changing package boundaries.
+- `next`, `react`, `satori`, and `@resvg/resvg-js` remain optional peer
+  dependencies, and the standalone renderer imports Satori and Resvg on first
+  use so a lean install stays importable. Test behavior both with and without
+  optional peers when changing package boundaries.
 - Public APIs need type coverage, behavior tests, and README documentation.
 - Do not commit `dist/`, coverage output, logs, `node_modules/`, or `.tgz`
   package archives.

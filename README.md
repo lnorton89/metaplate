@@ -15,17 +15,43 @@ and Next.js.
 
 ## Install
 
-For framework-neutral Node rendering:
+Metaplate has no runtime dependencies of its own. Each entry point declares the
+peers it needs, so metadata-only and Next.js projects never download Satori or
+Resvg's platform-specific binaries.
 
-```sh
-npm install metaplate react
-```
-
-For Next.js, `next` and `react` are peers already supplied by the application:
+For metadata, or for Next.js where `next` and `react` are already supplied by
+the application:
 
 ```sh
 npm install metaplate
 ```
+
+For framework-neutral PNG rendering with `metaplate/node`:
+
+```sh
+npm install metaplate satori @resvg/resvg-js react
+```
+
+For SVG-only rendering with `metaplate/render`, Resvg is unnecessary:
+
+```sh
+npm install metaplate satori react
+```
+
+### Optional peers
+
+`satori` and `@resvg/resvg-js` load on the first render rather than at import
+time, so the standalone entry points import cleanly in a lean install. A render
+without them reports the package to install:
+
+```
+Cannot find satori, required by metaplate/render and metaplate/node.
+Install it with: npm install satori
+```
+
+Through 0.1.x both packages were ordinary dependencies. Standalone consumers
+upgrading from those versions should add them to their own `package.json`;
+nothing changes for metadata-only and Next.js consumers.
 
 ## Framework-neutral renderer
 
@@ -106,7 +132,7 @@ await writeFile("public/og.png", await og.render(copy));
 ### SVG-only rendering
 
 Use `createSvgOg` from `metaplate/render` when the consumer only needs SVG and
-should not load Resvg's native Node binding.
+should not install Resvg's native Node binding.
 
 ## Next.js adapter
 
@@ -268,12 +294,13 @@ Or import `verifyPng` from `metaplate/png` in a test.
 
 ## Entry points
 
-- `metaplate` — framework-free paths, dimensions, and metadata.
-- `metaplate/render` — Satori-based SVG generation.
-- `metaplate/node` — SVG and PNG generation plus Fetch API responses.
-- `metaplate/next` — native Next.js `ImageResponse` adapter.
-- `metaplate/fonts` — hoist-safe package font loading and memoization.
-- `metaplate/png` — PNG header inspection and dimension verification.
+- `metaplate` — framework-free paths, dimensions, and metadata. No peers.
+- `metaplate/render` — Satori-based SVG generation. Needs `satori`.
+- `metaplate/node` — SVG and PNG generation plus Fetch API responses. Needs
+  `satori` and `@resvg/resvg-js`.
+- `metaplate/next` — native Next.js `ImageResponse` adapter. Needs `next`.
+- `metaplate/fonts` — hoist-safe package font loading and memoization. No peers.
+- `metaplate/png` — PNG header inspection and dimension verification. No peers.
 
 ## Design lineage
 
