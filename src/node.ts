@@ -1,10 +1,17 @@
-import { Resvg, type ResvgRenderOptions } from "@resvg/resvg-js";
+import type { ResvgRenderOptions } from "@resvg/resvg-js";
 import { OG_CONTENT_TYPE } from "./core.js";
+import { optionalPeer } from "./optional-peer.js";
 import {
   createSvgOg,
   type SvgOgDefinition,
   type SvgRenderOptions,
 } from "./render.js";
+
+const loadResvg = optionalPeer(
+  { package: "@resvg/resvg-js", entries: "metaplate/node" },
+  async (): Promise<typeof import("@resvg/resvg-js").Resvg> =>
+    (await import("@resvg/resvg-js")).Resvg,
+);
 
 export type NodeOgDefinition<Copy> = SvgOgDefinition<Copy> & {
   /** Resvg rendering controls such as background and font configuration. */
@@ -22,6 +29,7 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
 
   async function render(copy: Copy, options: SvgRenderOptions = {}) {
     const source = await svg.renderSvg(copy, options);
+    const Resvg = await loadResvg();
     return new Resvg(source, definition.resvg).render().asPng();
   }
 

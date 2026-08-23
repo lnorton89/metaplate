@@ -7,6 +7,11 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ### Changed
 
+- **Breaking:** Move `satori` and `@resvg/resvg-js` to optional peer
+  dependencies. Metadata-only and Next.js installs no longer fetch Satori or
+  Resvg's native binaries; consumers of `metaplate/render` and `metaplate/node`
+  install them explicitly. The renderer resolves both packages on first use, so
+  a missing peer reports its install command instead of failing at import.
 - Show concise relative paths rather than ambiguous basenames in multi-file
   verifier output.
 
