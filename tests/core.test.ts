@@ -9,8 +9,11 @@ import {
 describe("socialImagePath", () => {
   it.each([
     ["/", "/og-image"],
+    ["", "/og-image"],
+    ["//", "/og-image"],
     ["roadmap", "/roadmap/og-image"],
     ["/learn/borrowing/", "/learn/borrowing/og-image"],
+    ["/method//", "/method/og-image"],
   ])("maps %s to %s", (route, expected) => {
     expect(socialImagePath(route)).toBe(expected);
   });
