@@ -8,7 +8,7 @@
   "type": "module",
   "sideEffects": false,
   "engines": { "node": ">=20" },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,6 +24,7 @@
   "scripts": {
     "build": "tsup",
     "check": "npm run lint && npm run typecheck && npm test && npm run build && npm pack --dry-run",
+    "check:package": "node scripts/verify-package.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -55,7 +56,11 @@
     "vitest": "^4.1.0"
   },
   "overrides": { "esbuild": "^0.28.2" },
-  "publishConfig": { "access": "public", "provenance": true },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lnorton89/metaplate.git"
