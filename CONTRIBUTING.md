@@ -60,7 +60,9 @@ npm run build
 Dependabot opens weekly npm and GitHub Actions updates. Production dependency
 updates receive closer review because they become part of the consumer-facing
 runtime. Workflow actions are pinned to immutable commit SHAs; update the SHA
-and its trailing version comment together.
+and its trailing version comment together. Temporary compatibility ignores are
+documented in `.github/dependabot.yml` and should be removed as soon as the
+blocking peer dependency supports the newer release.
 
 Install lifecycle scripts are disabled in CI and release verification because
 this repository does not require them. A dependency that begins requiring a
