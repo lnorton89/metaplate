@@ -45,7 +45,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.0",
     "@fontsource/inter": "^5.2.8",
-    "@types/node": "^22.18.0",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.1.0",
     "eslint": "^10.0.0",
     "next": "^16.1.0",
