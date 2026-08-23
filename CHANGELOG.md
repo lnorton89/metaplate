@@ -5,6 +5,23 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Added
+
+- Support repository and application subpath deployments through `basePath` in
+  framework-neutral, Next.js, and standalone metadata helpers.
+- Verify mixed PNG dimensions in one CLI invocation by repeating `--size`
+  groups.
+
+### Fixed
+
+- Add default package-export conditions so CommonJS-based TypeScript runners
+  can resolve every public entry point.
+
+### Documentation
+
+- Document build-time `opengraph-image.tsx` and public-PNG patterns for Next.js
+  static exports, including `metadataBase` and a deployment `basePath`.
+
 ## [0.1.1] - 2026-08-23
 
 ### Fixed

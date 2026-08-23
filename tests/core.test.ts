@@ -19,6 +19,12 @@ describe("socialImagePath", () => {
     expect(socialImagePath("/docs", "/social/card")).toBe("/docs/social/card");
   });
 
+  it("prefixes routes with a deployment base path", () => {
+    expect(socialImagePath("/docs", "og-image.png", "/project/")).toBe(
+      "/project/docs/og-image.png",
+    );
+  });
+
   it("rejects an empty image path", () => {
     expect(() => socialImagePath("/docs", "///")).toThrow(/imagePath/);
   });
@@ -38,6 +44,15 @@ it("builds a standard image descriptor", () => {
     height: OG_SIZE.height,
     alt: "Roadmap card",
   });
+});
+
+it("builds a descriptor for a subpath deployment", () => {
+  expect(
+    socialImage("/guides", "Guides card", {
+      basePath: "/project",
+      imagePath: "og-image.png",
+    }).url,
+  ).toBe("/project/guides/og-image.png");
 });
 
 it("reuses one descriptor for Open Graph and Twitter metadata", () => {

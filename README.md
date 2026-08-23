@@ -191,6 +191,36 @@ const metadata = socialImageMetadata("/", "Project home card", {
 });
 ```
 
+### Next.js static export and `basePath`
+
+For a branded image generated during `next build`, use Next's special
+`app/opengraph-image.tsx` file shown above and set `dynamic = "force-static"`.
+Next can prerender that `ImageResponse` when `output: "export"` is enabled.
+
+If the image is generated outside Next and lives in `public`, use the
+framework-neutral metadata helper instead:
+
+```ts
+// app/layout.tsx
+import type { Metadata } from "next";
+import { socialImageMetadata } from "metaplate";
+
+const social = socialImageMetadata("/", "Project home card", {
+  basePath: "/project",
+  imagePath: "og-image.png",
+});
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://example.github.io"),
+  openGraph: social.openGraph,
+  twitter: social.twitter,
+};
+```
+
+This emits `/project/og-image.png`; Next resolves it against `metadataBase`.
+Verify both `public/og-image.png` and the copied `out/og-image.png`, and inspect
+the exported HTML to confirm its social tags contain the deployment prefix.
+
 ## Fonts
 
 Satori needs real font bytes and accepts TTF, OTF, and WOFF, but not WOFF2.
@@ -223,6 +253,15 @@ the entire image:
 
 ```sh
 npx metaplate verify --size 1200x630 public/og.png
+```
+
+Files of different sizes can be checked in one invocation by repeating the
+size group:
+
+```sh
+npx metaplate verify \
+  --size 1200x630 public/og.png public/about.png \
+  --size 512x512 public/icon-512.png
 ```
 
 Or import `verifyPng` from `metaplate/png` in a test.

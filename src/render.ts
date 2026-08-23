@@ -21,6 +21,7 @@ export type SvgOgDefinition<Copy> = {
   fonts: StandaloneFontLoader;
   size?: ImageSize;
   imagePath?: string;
+  basePath?: string;
   satori?: Omit<SatoriOptions, "width" | "height" | "fonts">;
 };
 
@@ -32,6 +33,7 @@ export type SvgRenderOptions = {
 export function createSvgOg<Copy>(definition: SvgOgDefinition<Copy>) {
   const size = Object.freeze({ ...(definition.size ?? OG_SIZE) });
   const imagePath = definition.imagePath ?? "og-image";
+  const basePath = definition.basePath ?? "";
 
   async function renderSvg(copy: Copy, options: SvgRenderOptions = {}) {
     const renderSize = options.size ?? size;
@@ -53,9 +55,9 @@ export function createSvgOg<Copy>(definition: SvgOgDefinition<Copy>) {
     contentType: SVG_CONTENT_TYPE,
     renderSvg,
     image: (route: string, copy: Copy) =>
-      socialImage(route, definition.alt(copy), { size, imagePath }),
+      socialImage(route, definition.alt(copy), { size, imagePath, basePath }),
     metadata: (route: string, copy: Copy) =>
-      socialImageMetadata(route, definition.alt(copy), { size, imagePath }),
+      socialImageMetadata(route, definition.alt(copy), { size, imagePath, basePath }),
   });
 }
 

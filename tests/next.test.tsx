@@ -33,9 +33,10 @@ it("keeps route and metadata helpers on the same definition", () => {
     alt: (copy) => copy.alt,
     component: () => <div style={{ display: "flex" }}>Card</div>,
     imagePath: "social-image",
+    basePath: "/project",
   });
 
   const copy = { alt: "A card" };
-  expect(plate.image("/docs", copy).url).toBe("/docs/social-image");
+  expect(plate.image("/docs", copy).url).toBe("/project/docs/social-image");
   expect(plate.metadata("/docs", copy).twitter.images[0]?.alt).toBe("A card");
 });
