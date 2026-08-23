@@ -234,12 +234,53 @@ export const og = createNextOg<OgCopy>({
 });
 ```
 
-Keep the copy next to the page metadata:
+Next shallow-merges metadata: a page that sets `openGraph` **replaces** the
+root layout's rather than extending it. Spreading `og.metadata()` straight into
+a page therefore drops every other Open Graph field the layout contributed —
+`siteName`, `type`, `locale`, `url` — from that page's tags. Nothing errors and
+the build stays green; the loss shows only in the emitted HTML.
+
+Write the composition once, next to the plate, and call it from each page:
+
+```tsx
+// src/lib/metadata.ts
+import type { Metadata } from "next";
+import { og, type OgCopy } from "./og";
+
+/** Site-level fields the root layout spreads into its own `openGraph`. */
+export const openGraph = {
+  siteName: "Example",
+  type: "website",
+  locale: "en_US",
+};
+
+export function pageMetadata(route: string, copy: OgCopy): Metadata {
+  const social = og.metadata(route, copy);
+
+  return {
+    title: copy.title,
+    description: copy.description,
+    openGraph: {
+      ...openGraph,
+      // `url` is per-route, so it cannot live in the shared constant, and the
+      // layout's own `url` is replaced along with everything else.
+      url: route,
+      // Without this, Next fills `og:title` from the document title, including
+      // any `title.template` suffix the layout defines.
+      title: copy.title,
+      description: copy.description,
+      images: social.openGraph.images,
+    },
+    twitter: social.twitter,
+  };
+}
+```
+
+Keep the copy next to the page it describes:
 
 ```tsx
 // src/app/roadmap/page.tsx
-import { og } from "@/lib/og";
-import { openGraph } from "@/lib/metadata";
+import { pageMetadata } from "@/lib/metadata";
 
 export const copy = {
   eyebrow: "What comes next",
@@ -248,25 +289,15 @@ export const copy = {
   alt: "Project roadmap",
 };
 
-const social = og.metadata("/roadmap", copy);
-
-export const metadata = {
-  title: copy.title,
-  description: copy.description,
-  openGraph: { ...openGraph, ...social.openGraph },
-  twitter: social.twitter,
-};
+export const metadata = pageMetadata("/roadmap", copy);
 ```
 
-Next shallow-merges metadata, so a page's `openGraph` **replaces** the root
-layout's rather than extending it. Spreading `og.metadata()` straight into a
-page therefore drops layout-level fields such as `siteName`, `type`, and
-`locale` from that page's tags. Nothing errors and the build stays green; the
-loss is visible only in the emitted HTML. Keep the shared fields in a module
-both the layout and each page can spread, as above.
+One function rather than a spread per page is deliberate: the fields above have
+to be restated on every route that sets `openGraph` at all, and a route that
+forgets one loses it silently.
 
-If a page sets no other Open Graph fields, and the layout does not either,
-spreading the whole result is still fine:
+If the layout sets no Open Graph fields and neither does the page, spreading
+the whole result stays correct:
 
 ```tsx
 export const metadata = { title: copy.title, ...og.metadata("/roadmap", copy) };
