@@ -343,7 +343,12 @@ try {
   writeFileSync(
     join(standalone, "react-free.tsx"),
     `
-    import { createSvgOg, type SatoriNode } from "metaplate/render";
+    import {
+      createSvgOg,
+      type SatoriFont,
+      type SatoriLayoutNode,
+      type SatoriNode,
+    } from "metaplate/render";
     import { socialImageMetadata } from "metaplate";
 
     const plain: SatoriNode = {
@@ -354,11 +359,27 @@ try {
       },
     };
 
+    // Exercise the React-free type surface: a Buffer-backed font (Node typed
+    // fonts were valid through Satori's re-export), the layout node passed to
+    // onNodeDetected, and the async loadAdditionalAsset callback.
+    const font: SatoriFont = {
+      name: "Inter",
+      data: Buffer.from("font bytes"),
+      weight: 700,
+    };
+    let detected: SatoriLayoutNode | undefined;
+
     // A plain-object component must satisfy the definition without React.
     const plate = createSvgOg({
       component: () => plain,
       alt: () => "card",
-      fonts: () => [],
+      fonts: () => [font],
+      satori: {
+        onNodeDetected: (node) => {
+          detected = node;
+        },
+        loadAdditionalAsset: (lang, segment) => Promise.resolve(segment + lang),
+      },
     });
 
     export const metadata = socialImageMetadata("/", "card");

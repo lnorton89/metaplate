@@ -68,6 +68,22 @@ describe("socialImagePath", () => {
     expect(socialImagePath("/docs/%66aq")).toBe("/docs/%66aq/og-image");
   });
 
+  it("rejects a dot segment even when another segment has a malformed escape", () => {
+    // A single malformed escape must not disable dot detection for the rest of
+    // the path: WHATWG parses `%ZZ` leniently and still normalizes `%2e%2e`.
+    expect(() =>
+      socialImagePath("/docs/%ZZ/%2e%2e/admin", "og-image", "", "https://example.com"),
+    ).toThrow(/dot segments|\.\./);
+    expect(() => socialImagePath("/%ZZ/%2e", "og-image", "", "https://example.com")).toThrow(
+      /dot segments|\.\./,
+    );
+  });
+
+  it("tolerates a malformed escape that is not a dot segment", () => {
+    expect(() => socialImagePath("/docs/%ZZ/learn")).not.toThrow();
+    expect(socialImagePath("/docs/%ZZ/learn")).toBe("/docs/%ZZ/learn/og-image");
+  });
+
   it.each(["/docs\\admin", "\\docs", "docs\\..\\admin"])(
     "rejects backslashes as path separators in %s",
     (route) => {

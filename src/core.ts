@@ -69,26 +69,30 @@ function assertPathname(value: string, label: string): void {
   if (value.includes("\\")) {
     throw new Error(`${label} must not contain backslashes: ${value}`);
   }
-  // Percent-encoded dot segments (and encoded separators) decode to traversal
-  // once `new URL()` runs, so the check walks the decoded path rather than the
-  // literal one.
-  for (const segment of decodePath(value).split(/[\\/]/)) {
-    if (segment === "." || segment === "..") {
+  // Percent-encoded dot segments decode to traversal once `new URL()` runs.
+  // Each segment is decoded independently so a malformed escape in one cannot
+  // disable dot detection for the rest of the path.
+  for (const segment of value.split(/[\\/]/)) {
+    if (isDotSegment(segment)) {
       throw new Error(`${label} must not contain "." or ".." segments: ${value}`);
     }
   }
 }
 
-/** Percent-decodes a pathname; a malformed escape is left as the literal text. */
-function decodePath(value: string): string {
-  if (!value.includes("%")) return value;
+/** True when a segment is a WHATWG dot segment, literally or percent-encoded. */
+function isDotSegment(segment: string): boolean {
+  if (segment === "." || segment === "..") return true;
+  if (!segment.includes("%")) return false;
+  let decoded: string;
   try {
-    return decodeURIComponent(value);
+    decoded = decodeURIComponent(segment);
   } catch {
-    return value;
+    // A malformed escape only disables this one segment's dot check; sibling
+    // segments are decoded independently.
+    return false;
   }
+  return decoded === "." || decoded === "..";
 }
-
 function cleanPathPart(value: string): string {
   let start = 0;
   let end = value.length;

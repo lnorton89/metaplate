@@ -42,20 +42,26 @@ and it now accepts a `resolvePackage` hook for installs without a
 conventional `node_modules` layout, such as Yarn Plug'n'Play ([#58]).
 - `metaplate/render` and `metaplate/node` declare `component` against a local
   `SatoriNode` element-tree type instead of React's `ReactNode`, and their
-  public type surfaces ship no React-dependent declaration (fonts and Satori
-  options are declared structurally), so a TypeScript consumer can author a
-  plain-object plate with no React or @types/react installed. The package
-  verification compiles a React-free TypeScript consumer against the packed
-  package with `skipLibCheck` off, so a hidden React dependency is an error
-  ([#59]).
-- Truncated images no longer pass `metaplate verify` when their dimension
-header survives: PNG chunk walks to IEND with at least one IDAT, JPEG walks
-to a terminal EOI, and WebP requires the declared RIFF size to match the
-available bytes and every chunk to stay inside it ([#50]).
-- `socialImagePath` rejects query strings, fragments, backslashes, and `.`/`..`
-segments — including percent-encoded forms such as `%2e%2e` that decode to
-`..` after URL parsing — in `route`, `basePath`, and `imagePath` instead of
-silently emitting a URL that normalizes somewhere else ([#57]).
+  public type surfaces ship no React-dependent declaration: `SatoriFont` and
+  `SatoriOptions` are declared structurally and faithfully, so a TypeScript
+  consumer can author a plain-object plate with no React or @types/react
+  installed while still passing a `Buffer`-backed font, the layout node handed
+  to `onNodeDetected`, and an async `loadAdditionalAsset`. The package
+  verification compiles a React-free TypeScript consumer exercising those
+  fields against the packed package with `skipLibCheck` off, so a hidden
+  React dependency or a broken mirror is an error ([#59]).
+- Truncated or header-shell images no longer pass `metaplate verify` even
+when their dimension header survives: PNG walks to a non-empty concatenated
+IDAT stream then zero-payload IEND (empty IDAT siblings stay legal); JPEG
+walks to a validated SOS segment header then a terminal EOI; WebP requires
+the declared RIFF size to match the bytes, every chunk to stay inside it,
+and an extended VP8X container to carry a `VP8 `/`VP8L`/`ANMF` chunk with a
+minimum header ([#50]).
+- `socialImagePath` rejects query strings, fragments, backslashes, and literal
+or percent-encoded `.`/`..` segments — `%2e%2e`, `.%2e`, `%2e.`, decoded
+independently per segment so a single malformed escape cannot disable
+elsewhere — in `route`, `basePath`, and `imagePath` instead of silently
+emitting a URL that normalizes somewhere else ([#57]).
 
 ### Documentation
 

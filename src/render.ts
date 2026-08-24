@@ -16,7 +16,7 @@ export const SVG_CONTENT_TYPE = "image/svg+xml" as const;
  * React or @types/react therefore need no library declarations suppressed.
  */
 export type SatoriFont = {
-  data: ArrayBuffer;
+  data: Buffer | ArrayBuffer;
   name: string;
   weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
   style?: "normal" | "italic";
@@ -24,21 +24,39 @@ export type SatoriFont = {
 };
 
 /**
+ * A laid-out node passed to Satori's `onNodeDetected` callback. This is the
+ * *output* of layout (Satori's own `SatoriNode`), distinct from the input
+ * element tree a plate's `component` returns; declared structurally so the
+ * public surface stays free of Satori's React-typed declarations.
+ */
+export type SatoriLayoutNode = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  type: string;
+  key?: string | number;
+  props: Record<string, unknown>;
+  textContent?: string;
+};
+
+/**
  * Satori options beyond the width, height, and fonts Metaplate owns. A
- * React-free mirror of the leaf-level Satori options, so a plate author can
- * tune these without pulling Satori's React-typed declarations into a
- * React-free build.
+ * React-free mirror of Satori's options so a plate author can tune these
+ * without pulling Satori's React-typed declarations into a React-free build.
+ * Leaf shapes follow Satori's contract (for example `loadAdditionalAsset` is
+ * asynchronous) even though Satori itself is declared here structurally.
  */
 export type SatoriOptions = {
   debug?: boolean;
   embedFont?: boolean;
   graphemeImages?: Record<string, string>;
-  onNodeDetected?: (node: SatoriNode) => void;
+  onNodeDetected?: (node: SatoriLayoutNode) => void;
   pointScaleFactor?: number;
   loadAdditionalAsset?: (
     languageCode: string,
     segment: string,
-  ) => Promise<string | SatoriFont[]> | string | SatoriFont[];
+  ) => Promise<string | SatoriFont[]>;
   /** Passed through to Satori; its full Tailwind config type is not re-declared. */
   tailwindConfig?: Record<string, unknown>;
 };

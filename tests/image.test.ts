@@ -134,6 +134,75 @@ describe("imageDimensions", () => {
       format: "webp",
     });
   });
+
+  it("rejects a PNG whose entire IDAT stream is empty", () => {
+    // A zero-length IDAT is legal between real siblings, but an image whose
+    // only IDAT is empty carries no zlib stream and must not verify.
+    const emptyStream = Uint8Array.from([
+      ...completePng(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", []),
+      ...pngChunk("IDAT", []),
+      ...pngChunk("IEND", []),
+    ]);
+    expect(() => imageDimensions(emptyStream)).toThrow(/no image data/);
+  });
+
+  it("accepts an empty IDAT before the real image data", () => {
+    const base = completePng(1200, 630);
+    const withLeadingEmptyIdat = Uint8Array.from([
+      ...base.subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", []),
+      ...base.subarray(8 + 12 + 13),
+    ]);
+    expect(imageDimensions(withLeadingEmptyIdat)).toEqual({
+      width: 1200,
+      height: 630,
+      format: "png",
+    });
+  });
+
+  it("rejects a VP8X container whose only payload chunk is empty", () => {
+    // A zero-length VP8 header inside a VP8X container must not count as image
+    // data, or the empty-chunk attitude would reopen the VP8X-only hole.
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    // body = "WEBP" (4) + vp8x (18) + empty "VP8 " chunk (8); RIFF size = body + 4.
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x1e, 0x00, 0x00, 0x00, // declared RIFF size: 38 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      0x56, 0x50, 0x38, 0x20, // "VP8 "
+      0x00, 0x00, 0x00, 0x00, // chunk length 0
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/no image or animation data/);
+  });
+
+  it("rejects a JPEG whose SOS segment is bare", () => {
+    // A frame header followed by a complaint `FF DA 00 00` SOS (no declared
+    // length or component count) and then EOI has no scan to decode, so it
+    // must fail rather than pass on a bare SOS marker.
+    const withSof = [
+      0xff, 0xd8, // SOI
+      0xff, 0xc0, // SOF0
+      0x00, 0x0b, // length 11 (Nf=1)
+      0x08, 0x02, 0x76, 0x04, 0xb0, 0x01, 0x01, 0x22, 0x00, // precision/height/width/Nf/component
+    ];
+    const bareSos = Uint8Array.from([
+      ...withSof,
+      0xff, 0xda, 0x00, 0x00, // SOS marker with a zero length
+      0xff, 0xd9, // EOI
+    ]);
+    expect(() => imageDimensions(bareSos)).toThrow(/SOS segment/);
+  });
 });
 
 describe("verifyImage", () => {

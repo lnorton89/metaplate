@@ -80,15 +80,19 @@ function pngSize(bytes: Uint8Array): ImageDimensions {
     format: "png" as const,
   };
   let offset = 8 + 12 + 13;
-  let sawIdat = false;
+  let idatBytes = 0;
 
   while (offset + 12 <= bytes.byteLength) {
     const length = uint32(bytes, offset);
     const type = ascii(bytes, offset + 4, 4);
 
-    if (type === "IDAT") sawIdat = true;
+    if (type === "IDAT") idatBytes += length;
     if (type === "IEND") {
-      if (!sawIdat) throw new Error("Not a PNG: missing an IDAT image chunk");
+      // Empty IDAT siblings are legal, but an image whose concatenated IDAT
+      // stream is empty has no zlib data at all, so it must not verify.
+      if (idatBytes === 0) {
+        throw new Error("Not a PNG: IDAT stream contains no image data");
+      }
       if (length !== 0) throw new Error("Not a PNG: IEND must have no payload");
       if (offset + 12 !== bytes.byteLength) {
         throw new Error("Not a PNG: trailing data after IEND");
@@ -121,6 +125,7 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
   let height = 0;
   let sawFrame = false;
   let sawScan = false;
+  let scanStart = 0;
 
   while (offset + 4 <= bytes.byteLength) {
     if (bytes[offset] !== 0xff) throw new Error("Not a JPEG: expected a segment marker");
@@ -130,7 +135,19 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
 
     const marker = bytes[offset + 1]!;
     if (marker === 0xda) {
+      // Validate the SOS segment itself before trusting the scan that follows.
+      // It must declare its length, at least one component and its selectors,
+      // and the three spectral-selection bytes (minimum 2+1+2*1+3 = 8).
+      const length = uint16(bytes, offset + 2);
+      if (length < 8 || offset + 2 + length > bytes.byteLength) {
+        throw new Error("Not a JPEG: truncated or malformed SOS segment");
+      }
+      const components = bytes[offset + 4]!;
+      if (components < 1 || 2 + 1 + components * 2 + 3 !== length) {
+        throw new Error("Not a JPEG: malformed SOS segment header");
+      }
       sawScan = true;
+      scanStart = offset + 2 + length;
       break;
     }
     if (marker === 0xd9) break;
@@ -162,7 +179,7 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
   // the data proper.
   if (sawScan) {
     if (!sawFrame) throw new Error("Not a JPEG: no frame header found");
-    let scan = offset + 2;
+    let scan = scanStart;
     while (scan + 1 < bytes.byteLength) {
       if (bytes[scan] === 0xff && bytes[scan + 1] === 0x00) {
         scan += 2;
@@ -239,15 +256,26 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
   const needsPayload = chunk === "VP8X";
   let sawPayload = false;
 
+  // The minimum payload each image-bearing chunk type needs for a meaningful
+  // header: VP8 lossy keeps a 10-byte frame header, VP8L a 5-byte lossless
+  // header, and ANMF a 16-byte frame header before its sub-chunks. An empty or
+  // stub chunk must not count as image data.
+  const payloadMinimum: Record<string, number> = {
+    "VP8 ": 10,
+    VP8L: 5,
+    ANMF: 16,
+  };
+
   // Walk the container so a chunk truncated against the declared RIFF size
   // (for example a missing ALPH or ANIM payload) is caught.
   let offset = 12;
   while (offset + 8 <= expectedEnd) {
     const child = ascii(bytes, offset, 4);
-    if (needsPayload && (child === "VP8 " || child === "VP8L" || child === "ANMF")) {
+    const length = uint32LE(bytes, offset + 4);
+    const minimum = payloadMinimum[child];
+    if (needsPayload && minimum !== undefined && length >= minimum) {
       sawPayload = true;
     }
-    const length = uint32LE(bytes, offset + 4);
     if (offset + 8 + length > expectedEnd) {
       throw new Error("Not a WebP: chunk is truncated");
     }
