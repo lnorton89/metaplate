@@ -131,32 +131,49 @@ cards at once.
 
 ### Other output formats
 
-PNG suits a flat vector plate and is what `render` returns. A card that
-composites a photograph is a different problem: the same 1200x630 card measures
-roughly 60 KB flat, 253 KB with a photo in it, and about 35 KB as JPEG at
-quality 80. Across a per-item card set that difference decides whether the set
-is publishable at all.
+PNG suits a flat vector plate and is what `render` returns by default. A card
+that composites a photograph is a different problem: the same 1200x630 card
+measures roughly 60 KB flat, 253 KB with a photo in it, and about 35 KB as JPEG
+at quality 80. Across a per-item card set that difference decides whether the
+set is publishable at all.
 
-`renderPixels` returns the raw pixmap so any encoder can take it, which keeps
-an image encoder out of this package:
+Metaplate ships no image encoder. Declare one and the plate carries the format
+end to end — `render` returns the encoded bytes, and `response` and `handler`
+serve the media type that was declared with it:
 
 ```ts
 import sharp from "sharp";
 
-const { pixels, width, height } = await og.renderPixels(copy);
-
-await sharp(pixels, { raw: { width, height, channels: 4 } })
-  .jpeg({ quality: 80 })
-  .toFile("public/og-image.jpg");
+export const og = createNodeOg<Copy>({
+  alt: (copy) => copy.alt,
+  fonts,
+  component,
+  imagePath: "og-image.jpg",
+  output: {
+    contentType: "image/jpeg",
+    encode: ({ pixels, width, height }) =>
+      sharp(pixels, { raw: { width, height, channels: 4 } })
+        .jpeg({ quality: 80 })
+        .toBuffer(),
+  },
+});
 ```
 
-The bytes are row-major RGBA, `width * height * 4` long, and the same shape
-`@jsquash/jpeg`, `@jsquash/webp`, and `sharp` all accept.
+The encoder receives row-major RGBA, `width * height * 4` long — the shape
+`sharp`, `@jsquash/jpeg`, and `@jsquash/webp` all accept. `contentType` and
+`encode` are declared together so the bytes and the media type cannot
+disagree.
+
+For a build script that writes files rather than serving them, `renderPixels`
+hands back the same pixmap without going through an encoder at all:
+
+```ts
+const { pixels, width, height } = await og.renderPixels(copy);
+```
 
 Two things to know when leaving PNG behind: point `imagePath` at the extension
 actually written, so `socialImage` and `socialImageMetadata` describe the real
-file, and note that `metaplate verify` reads PNG headers only — a JPEG or WebP
-card is not covered by it.
+file, and check what `metaplate verify` covers for that format.
 
 ### Astro, SvelteKit, Remix, and other Fetch-based routes
 
