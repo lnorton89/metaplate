@@ -5,6 +5,15 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-23
+
+### Removed
+
+- **Breaking:** The `ImageResponse` re-export from `metaplate/next`. Import it
+  from `next/og` directly. The adapter now resolves `next/og` on first render,
+  so the entry point imports in an install without Next and a missing peer
+  reports its install command like every other peer.
+
 ### Fixed
 
 - Attribute a failed optional-peer import to the package that is actually
@@ -13,8 +22,6 @@ All notable changes to Metaplate are documented in this file. The project uses
   had.
 - Reject a zero width or height in `metaplate verify --size` rather than
   reporting the mismatch it always produces against the file.
-
-## [0.2.0] - 2026-08-23
 
 ### Changed
 

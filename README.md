@@ -40,18 +40,27 @@ npm install metaplate satori react
 
 ### Optional peers
 
-`satori` and `@resvg/resvg-js` load on the first render rather than at import
-time, so the standalone entry points import cleanly in a lean install. A render
-without them reports the package to install:
+Every peer — `satori`, `@resvg/resvg-js`, and `next` — loads on the first
+render rather than at import time, so each entry point imports cleanly in an
+install that lacks it. A render without the peer reports the package to
+install:
 
 ```
 Cannot find satori, required by metaplate/render and metaplate/node.
 Install it with: npm install satori
 ```
 
-Through 0.1.x both packages were ordinary dependencies. Standalone consumers
+Through 0.1.x Satori and Resvg were ordinary dependencies. Standalone consumers
 upgrading from those versions should add them to their own `package.json`;
-nothing changes for metadata-only and Next.js consumers.
+nothing changes for metadata-only consumers, and Next.js applications already
+supply `next` themselves.
+
+`metaplate/next` no longer re-exports `ImageResponse`. Import it from `next/og`
+directly if a plate needs it:
+
+```ts
+import { ImageResponse } from "next/og";
+```
 
 ## Framework-neutral renderer
 
