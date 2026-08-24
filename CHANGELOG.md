@@ -5,6 +5,13 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Added
+
+- `renderPixels` on `metaplate/node`, returning the raw RGBA pixmap so a
+  consumer can encode a card as JPEG or WebP. A card compositing a photograph
+  is several times larger as PNG, and returning the pixmap keeps an image
+  encoder out of this package.
+
 ### Changed
 
 - Report both renderer peers at once when `metaplate/node` has neither
