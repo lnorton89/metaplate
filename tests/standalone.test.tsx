@@ -247,3 +247,24 @@ it(
   },
   20_000,
 );
+
+// TypeScript covers the encoder contract for typed consumers; plain JavaScript
+// build scripts are exactly the case this API was added for, and there the
+// wrong return type has to say which side is wrong.
+it.each([
+  ["a string", "not bytes", "string"],
+  ["an ArrayBuffer", new ArrayBuffer(4), "ArrayBuffer"],
+  ["null", null, "null"],
+])("rejects an encoder returning %s", async (_label, value, described) => {
+  const plate = createNodeOg({
+    ...definition,
+    output: {
+      contentType: "image/jpeg",
+      encode: () => value as unknown as Uint8Array,
+    },
+  });
+
+  await expect(plate.render({ title: "Wrong" })).rejects.toThrow(
+    `output.encode must return a Uint8Array; received ${described}`,
+  );
+}, 20_000);

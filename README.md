@@ -528,8 +528,8 @@ for PNG-only checks.
 
 - `metaplate` — framework-free paths, dimensions, and metadata. No peers.
 - `metaplate/render` — Satori-based SVG generation. Needs `satori`.
-- `metaplate/node` — SVG and PNG generation plus Fetch API responses. Needs
-  `satori` and `@resvg/resvg-js`.
+- `metaplate/node` — SVG, PNG, raw pixels, and any format a supplied encoder
+  produces, plus Fetch API responses. Needs `satori` and `@resvg/resvg-js`.
 - `metaplate/next` — native Next.js `ImageResponse` adapter. Needs `next`.
 - `metaplate/fonts` — hoist-safe package font loading and memoization. No peers.
 - `metaplate/png` — PNG header inspection and dimension verification. No peers.

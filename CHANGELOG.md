@@ -5,6 +5,13 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject an `output.encode` that does not return a `Uint8Array`, naming what it
+  returned instead. A plain JavaScript build script — the case the option
+  exists for — previously failed later inside `response`, where the error read
+  as a defect in Metaplate rather than in the supplied encoder.
+
 ## [0.4.0] - 2026-08-24
 
 ### Added
