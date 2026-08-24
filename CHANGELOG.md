@@ -7,6 +7,10 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ### Added
 
+- `metaplate/image`, reading dimensions from PNG, JPEG, and WebP headers, and
+  `metaplate verify` now covering all three. A card encoded as JPEG or WebP
+  through `output` stays inside the build check rather than silently leaving
+  it. `metaplate/png` is unchanged for PNG-only checks.
 - An `output` option on `createNodeOg` that takes a `contentType` and an
   `encode` function, so a plate can emit JPEG, WebP, or anything else while
   `render`, `response`, and `handler` carry the declared media type. Metaplate

@@ -55,6 +55,11 @@
       "types": "./dist/png.d.ts",
       "import": "./dist/png.js",
       "default": "./dist/png.js"
+    },
+    "./image": {
+      "types": "./dist/image.d.ts",
+      "import": "./dist/image.js",
+      "default": "./dist/image.js"
     }
   },
   "bin": {

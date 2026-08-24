@@ -171,9 +171,9 @@ hands back the same pixmap without going through an encoder at all:
 const { pixels, width, height } = await og.renderPixels(copy);
 ```
 
-Two things to know when leaving PNG behind: point `imagePath` at the extension
-actually written, so `socialImage` and `socialImageMetadata` describe the real
-file, and check what `metaplate verify` covers for that format.
+Point `imagePath` at the extension actually written, so `socialImage` and
+`socialImageMetadata` describe the real file. `metaplate verify` reads PNG,
+JPEG, and WebP, so the build check follows the card whichever format it takes.
 
 ### Astro, SvelteKit, Remix, and other Fetch-based routes
 
@@ -498,8 +498,8 @@ for = "/*/og-image"
 
 ## Verify generated files
 
-Metaplate checks the PNG signature, IHDR chunk, and dimensions without decoding
-the entire image:
+Metaplate reads dimensions straight from the container header — PNG, JPEG, or
+WebP — without decoding the image:
 
 ```sh
 npx metaplate verify --size 1200x630 public/og.png
@@ -514,7 +514,15 @@ npx metaplate verify \
   --size 512x512 public/icon-512.png
 ```
 
-Or import `verifyPng` from `metaplate/png` in a test.
+Mixed formats work in one invocation, since the format is detected per file:
+
+```sh
+npx metaplate verify   --size 1200x630 public/og-image.jpg out/og-image.jpg   --size 512x512 public/icon.webp
+```
+
+Or import `verifyImage` from `metaplate/image` in a test, which returns the
+format it verified alongside the dimensions. `metaplate/png` remains available
+for PNG-only checks.
 
 ## Entry points
 
@@ -525,6 +533,7 @@ Or import `verifyPng` from `metaplate/png` in a test.
 - `metaplate/next` — native Next.js `ImageResponse` adapter. Needs `next`.
 - `metaplate/fonts` — hoist-safe package font loading and memoization. No peers.
 - `metaplate/png` — PNG header inspection and dimension verification. No peers.
+- `metaplate/image` — the same for PNG, JPEG, and WebP. No peers.
 
 ## Design lineage
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 
 export const VERIFY_USAGE =
-  "Usage: metaplate verify --size WIDTHxHEIGHT <file.png> [...] [--size WIDTHxHEIGHT <file.png> [...]]";
+  "Usage: metaplate verify --size WIDTHxHEIGHT <file> [...] [--size WIDTHxHEIGHT <file> [...]]";
 
 export type VerifyTarget = {
   file: string;
