@@ -126,6 +126,21 @@ describe("imageDimensions", () => {
     });
   });
 
+  it("rejects a PNG with IDAT chunks separated by ancillary metadata", () => {
+    const splitByText = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ...pngChunk("IHDR", [
+        0, 0, 0x04, 0xb0, 0, 0, 0x02, 0x76, 8, 6, 0, 0, 0,
+      ]),
+      ...pngChunk("IDAT", [0x78, 0x9c]),
+      ...pngChunk("tEXt", [0x6b, 0x00]),
+      ...pngChunk("IDAT", [0x03, 0x00, 0x00, 0x00, 0x00, 0x01]),
+      ...pngChunk("IEND", []),
+    ]);
+
+    expect(() => imageDimensions(splitByText)).toThrow(/IDAT chunks must be consecutive/);
+  });
+
   it("rejects a VP8X container with no image data", () => {
     // A structurally complete RIFF holding only the VP8X origin/size header
     // must not verify: it has dimensions but no usable pixels.

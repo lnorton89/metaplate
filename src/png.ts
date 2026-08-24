@@ -73,17 +73,25 @@ export function pngDimensions(input: ArrayBuffer | Uint8Array): PngDimensions {
   // chunk boundaries so the zlib header can be checked without copying.
   const streamHead: [number, number] = [0, 0];
   let headFilled = 0;
+  let sawIdat = false;
+  let idatSequenceEnded = false;
 
   while (offset + 12 <= bytes.byteLength) {
     const length = chunkLength(bytes, offset);
     const type = chunkType(bytes, offset + 4);
 
     if (type === "IDAT") {
+      if (idatSequenceEnded) {
+        throw new Error("Not a PNG: IDAT chunks must be consecutive");
+      }
+      sawIdat = true;
       idatBytes += length;
       for (let index = 0; index < length && headFilled < 2; index += 1) {
         streamHead[headFilled] = bytes[offset + 8 + index]!;
         headFilled += 1;
       }
+    } else if (sawIdat) {
+      idatSequenceEnded = true;
     }
     if (type === "IEND") {
       // Empty IDAT siblings are legal, but an image whose concatenated IDAT

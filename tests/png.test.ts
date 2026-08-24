@@ -56,6 +56,23 @@ describe("PNG verification", () => {
     expect(pngDimensions(withEmptyIdat)).toEqual({ width: 1200, height: 630 });
   });
 
+  it("rejects IDAT chunks separated by an ancillary chunk", () => {
+    // PNG permits a zlib stream to span IDAT siblings, but those siblings
+    // must be contiguous. Otherwise decoders can disagree about the stream.
+    const splitByText = Uint8Array.from([
+      ...pngHeader(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", [0x78, 0x9c]),
+      ...pngChunk("tEXt", [0x6b, 0x00]),
+      ...pngChunk("IDAT", [0x03, 0x00, 0x00, 0x00, 0x00, 0x01]),
+      ...pngChunk("IEND", []),
+    ]);
+
+    expect(() => pngDimensions(splitByText)).toThrow(/IDAT chunks must be consecutive/);
+    expect(() => verifyPng(splitByText, { width: 1200, height: 630 })).toThrow(
+      /IDAT chunks must be consecutive/,
+    );
+  });
+
   it("rejects a PNG whose entire IDAT stream is empty", () => {
     // A zero-length IDAT is legal between real siblings, but an image whose
     // only IDATs are empty carries no zlib stream and must not verify.
