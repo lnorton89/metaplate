@@ -473,6 +473,25 @@ describe("imageDimensions", () => {
     expect(() => imageDimensions(emptyScan)).toThrow(/no entropy-coded data/);
   });
 
+  it("rejects a multi-scan JPEG whose first scan contains no entropy-coded data", () => {
+    // A later scan's data cannot make an earlier empty scan valid. Progressive
+    // JPEGs are multi-scan, so validate each scan before its next SOS marker.
+    const withSof = [
+      0xff, 0xd8, // SOI
+      0xff, 0xc2, // SOF2 (progressive, multi-scan capable)
+      0x00, 0x0b, // length 11 (Nf=1)
+      0x08, 0x02, 0x76, 0x04, 0xb0, 0x01, 0x01, 0x22, 0x00, // precision/height/width/Nf/component
+    ];
+    const emptyFirstScan = Uint8Array.from([
+      ...withSof,
+      0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, // first (DC) SOS
+      0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x01, 0x3f, 0x00, // later (AC) SOS
+      0x01, // entropy-coded data for the later scan
+      0xff, 0xd9, // EOI
+    ]);
+    expect(() => imageDimensions(emptyFirstScan)).toThrow(/no entropy-coded data/);
+  });
+
   it("rejects a JPEG whose scan contains a marker but no entropy-coded data", () => {
     // A DHT marker between SOS and EOI must not count as compressed data:
     // there is still no entropy-coded byte in the scan.

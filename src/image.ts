@@ -118,6 +118,11 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
         sawEntropy = true;
         continue;
       }
+      // A scan must contain entropy-coded data before another marker can end
+      // it, including the SOS marker that starts a later progressive scan.
+      if (!sawEntropy) {
+        throw new Error("Not a JPEG: image scan contains no entropy-coded data");
+      }
       // Any other 0xFF xx is a marker segment between entropy-coded data:
       // parse it below, then re-enter the scan.
       resumeScan = true;
