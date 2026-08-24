@@ -4,9 +4,10 @@ import { optionalPeer } from "../src/optional-peer.js";
 const peer = { package: "satori", entries: "metaplate/render and metaplate/node" };
 
 function missingModule(specifier: string) {
-  return Object.assign(new Error(`Cannot find package '${specifier}'`), {
-    code: "ERR_MODULE_NOT_FOUND",
-  });
+  return Object.assign(
+    new Error(`Cannot find package '${specifier}' imported from /app/node_modules/metaplate/dist/render.js`),
+    { code: "ERR_MODULE_NOT_FOUND" },
+  );
 }
 
 describe("optionalPeer", () => {
@@ -39,6 +40,18 @@ describe("optionalPeer", () => {
     await expect(loadPeer()).rejects.toThrow("npm install satori");
     await expect(loadPeer()).resolves.toBe("satori");
     expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a peer's own broken dependency tree alone", async () => {
+    // satori resolved, but something it imports did not. Telling this consumer
+    // to install satori would point at the wrong package.
+    const cause = Object.assign(
+      new Error("Cannot find package 'yoga-wasm-web' imported from satori/dist/index.js"),
+      { code: "ERR_MODULE_NOT_FOUND" },
+    );
+    const loadPeer = optionalPeer(peer, () => Promise.reject(cause));
+
+    await expect(loadPeer()).rejects.toBe(cause);
   });
 
   it("leaves unrelated failures alone", async () => {
