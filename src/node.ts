@@ -1,17 +1,12 @@
 import type { ResvgRenderOptions } from "@resvg/resvg-js";
 import { OG_CONTENT_TYPE } from "./core.js";
-import { optionalPeer } from "./optional-peer.js";
+import { loadPeerPair } from "./optional-peer.js";
+import { loadResvg, loadSatori } from "./peers.js";
 import {
   createSvgOg,
   type SvgOgDefinition,
   type SvgRenderOptions,
 } from "./render.js";
-
-const loadResvg = optionalPeer(
-  { package: "@resvg/resvg-js", entries: "metaplate/node" },
-  async (): Promise<typeof import("@resvg/resvg-js").Resvg> =>
-    (await import("@resvg/resvg-js")).Resvg,
-);
 
 export type NodeOgDefinition<Copy> = SvgOgDefinition<Copy> & {
   /** Resvg rendering controls such as background and font configuration. */
@@ -28,8 +23,10 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
   const svg = createSvgOg(definition);
 
   async function render(copy: Copy, options: SvgRenderOptions = {}) {
+    // Both peers resolve before rendering so an install missing both is told
+    // to add both, rather than reporting them one run at a time.
+    const [, Resvg] = await loadPeerPair(loadSatori, loadResvg, "metaplate/node");
     const source = await svg.renderSvg(copy, options);
-    const Resvg = await loadResvg();
     return new Resvg(source, definition.resvg).render().asPng();
   }
 
