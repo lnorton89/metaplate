@@ -227,3 +227,23 @@ it(
   },
   20_000,
 );
+
+// `handler` is the documented integration point for Astro, SvelteKit, and any
+// other route system that returns a Web Response, and nothing called it.
+it(
+  "returns a Fetch handler bound to one copy",
+  async () => {
+    const plate = createNodeOg({
+      ...definition,
+      headers: { "Cache-Control": "public, max-age=86400" },
+    });
+
+    const GET = plate.handler({ title: "Handler" });
+    const response = await GET();
+
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=86400");
+    verifyPng(await response.arrayBuffer(), plate.size);
+  },
+  20_000,
+);
