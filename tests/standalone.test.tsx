@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { expect, it } from "vitest";
 import { packageFontLoader } from "../src/fonts.js";
-import { createNodeOg } from "../src/node.js";
+import { createNodeOg, type RenderedPixels } from "../src/node.js";
 import { verifyPng } from "../src/png.js";
 import { createSvgOg } from "../src/render.js";
 
@@ -141,4 +141,33 @@ it(
     expect(Buffer.from(concurrent[0]!).equals(Buffer.from(concurrent[1]!))).toBe(false);
   },
   60_000,
+);
+
+it(
+  "encodes with a supplied encoder and serves its media type",
+  async () => {
+    const encoded = Uint8Array.of(0xff, 0xd8, 0xff, 0xe0);
+    const seen: RenderedPixels[] = [];
+    const plate = createNodeOg({
+      ...definition,
+      output: {
+        contentType: "image/jpeg",
+        encode: (image) => {
+          seen.push(image);
+          return encoded;
+        },
+      },
+    });
+
+    expect(plate.contentType).toBe("image/jpeg");
+    expect(await plate.render({ title: "Encoded" })).toEqual(encoded);
+
+    const response = await plate.response({ title: "Encoded" });
+    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(encoded);
+
+    const image = seen[0]!;
+    expect(image.pixels.length).toBe(image.width * image.height * 4);
+  },
+  20_000,
 );

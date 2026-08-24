@@ -16,11 +16,23 @@ export type RenderedPixels = {
   height: number;
 };
 
+/**
+ * Replaces PNG output. Metaplate ships no image encoder, so the encoder and
+ * the media type it produces are declared together and cannot disagree.
+ */
+export type OutputEncoder = {
+  /** Media type of the encoded bytes, such as `image/jpeg`. */
+  contentType: string;
+  encode: (image: RenderedPixels) => Promise<Uint8Array> | Uint8Array;
+};
+
 export type NodeOgDefinition<Copy> = SvgOgDefinition<Copy> & {
   /** Resvg rendering controls such as background and font configuration. */
   resvg?: ResvgRenderOptions;
   /** Headers added to Web Responses returned by `response` and `handler`. */
   headers?: HeadersInit;
+  /** Encodes something other than PNG, and declares what that something is. */
+  output?: OutputEncoder;
 };
 
 /**
@@ -29,6 +41,7 @@ export type NodeOgDefinition<Copy> = SvgOgDefinition<Copy> & {
  */
 export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
   const svg = createSvgOg(definition);
+  const contentType = definition.output?.contentType ?? OG_CONTENT_TYPE;
 
   async function rasterize(copy: Copy, options: SvgRenderOptions) {
     // Both peers resolve before rendering so an install missing both is told
@@ -38,8 +51,15 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
     return new Resvg(source, definition.resvg).render();
   }
 
-  async function render(copy: Copy, options: SvgRenderOptions = {}) {
-    return (await rasterize(copy, options)).asPng();
+  async function render(copy: Copy, options: SvgRenderOptions = {}): Promise<Uint8Array> {
+    const image = await rasterize(copy, options);
+    if (!definition.output) return image.asPng();
+
+    return definition.output.encode({
+      pixels: image.pixels,
+      width: image.width,
+      height: image.height,
+    });
   }
 
   /**
@@ -57,18 +77,18 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
 
   async function response(copy: Copy, options: SvgRenderOptions = {}) {
     const headers = new Headers(definition.headers);
-    headers.set("Content-Type", OG_CONTENT_TYPE);
-    const png = await render(copy, options);
-    const body = png.buffer.slice(
-      png.byteOffset,
-      png.byteOffset + png.byteLength,
+    headers.set("Content-Type", contentType);
+    const bytes = await render(copy, options);
+    const body = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
     ) as ArrayBuffer;
     return new Response(body, { headers });
   }
 
   return Object.freeze({
     ...svg,
-    contentType: OG_CONTENT_TYPE,
+    contentType,
     render,
     renderPixels,
     response,

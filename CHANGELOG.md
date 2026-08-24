@@ -5,6 +5,14 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Added
+
+- An `output` option on `createNodeOg` that takes a `contentType` and an
+  `encode` function, so a plate can emit JPEG, WebP, or anything else while
+  `render`, `response`, and `handler` carry the declared media type. Metaplate
+  still ships no image encoder; the pair is declared together so the bytes and
+  the media type cannot disagree.
+
 ## [0.3.0] - 2026-08-24
 
 ### Added
