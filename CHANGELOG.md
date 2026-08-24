@@ -5,6 +5,12 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Documentation
+
+- Record that upgrading to 0.2.0 in place keeps Satori and Resvg on disk,
+  because an installed package satisfies the now-optional peer, and that a
+  clean reinstall is what reclaims the space.
+
 ## [0.2.0] - 2026-08-23
 
 ### Removed
