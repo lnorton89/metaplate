@@ -12,11 +12,15 @@ export const SVG_CONTENT_TYPE = "image/svg+xml" as const;
 /**
  * A font face the standalone renderer passes through to Satori. Declared
  * structurally so `metaplate/render`'s public type surface stays free of
- * Satori's declarations, which import React; consumers compiling without
- * React or @types/react therefore need no library declarations suppressed.
+ * Satori's declarations, which import React, and of Node's typings: `data`
+ * is `ArrayBuffer | Uint8Array` rather than Satori's `Buffer | ArrayBuffer`
+ * because `Buffer` is a bare Node global that would otherwise make every
+ * consumer need `@types/node` just to load the declaration. A Node `Buffer`
+ * remains assignable (it is a `Uint8Array`), and Satori itself wraps either
+ * shape into a `Uint8Array` before parsing.
  */
 export type SatoriFont = {
-  data: Buffer | ArrayBuffer;
+  data: ArrayBuffer | Uint8Array;
   name: string;
   weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
   style?: "normal" | "italic";
@@ -113,15 +117,20 @@ export function createSvgOg<Copy>(definition: SvgOgDefinition<Copy>) {
     }
 
     // SatoriNode is structurally what Satori walks; its own declarations type
-    // the parameter as React's ReactNode, so the boundary cast keeps the
-    // public type surface free of React (which is also why `definition.satori`
-    // is cast across the Satori boundary rather than typed against it).
-    return satori(definition.component(copy) as Parameters<typeof satori>[0], {
-      ...(definition.satori as unknown as Parameters<typeof satori>[1]),
-      width: size.width,
-      height: size.height,
-      fonts: [...fonts],
-    });
+    // the parameter as React's ReactNode, and its FontOptions narrow the font
+    // data to `Buffer | ArrayBuffer`, so the boundary cast keeps the public
+    // type surface free of React and of Node's Buffer global (which is also
+    // why `definition.satori` is cast across the Satori boundary rather than
+    // typed against it).
+    return satori(
+      definition.component(copy) as Parameters<typeof satori>[0],
+      {
+        ...(definition.satori as unknown as Parameters<typeof satori>[1]),
+        width: size.width,
+        height: size.height,
+        fonts: [...fonts],
+      } as unknown as Parameters<typeof satori>[1],
+    );
   }
 
   return Object.freeze({

@@ -16,6 +16,7 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const temporary = mkdtempSync(join(tmpdir(), "metaplate-package-"));
 const consumer = join(temporary, "consumer");
 const standalone = join(temporary, "standalone");
+const bare = join(temporary, "bare");
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const npmCli = process.env.npm_execpath;
 
@@ -395,6 +396,77 @@ try {
     throw new Error(`TypeScript consumer failed to compile: ${tsc}`);
   }
 
+  // Issue #59, round two: the React-free surface must not trade the React
+  // type leak for a Node one. `SatoriFont.data` is declared as
+  // `ArrayBuffer | Uint8Array` (never Node's bare `Buffer` global), so a
+  // consumer with no @types/node and no React types installed can load
+  // `metaplate/render` and author a plain-object plate with an
+  // ArrayBuffer-backed font. Compile that second consumer here — only
+  // TypeScript and the renderer peer installed, `skipLibCheck` off, so a
+  // hidden Node or React dependency in any declaration is a hard error
+  // rather than a suppressed one.
+  install(bare, [archive, peerSpecifier("satori"), peerSpecifier("typescript")]);
+
+  writeFileSync(
+    join(bare, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        noEmit: true,
+        module: "nodenext",
+        moduleResolution: "nodenext",
+      },
+      include: ["isomorphic.tsx"],
+    }),
+  );
+  writeFileSync(
+    join(bare, "isomorphic.tsx"),
+    `
+    import {
+      createSvgOg,
+      type SatoriFont,
+      type SatoriLayoutNode,
+    } from "metaplate/render";
+
+    // An ArrayBuffer-backed font must type-check where Node's Buffer global
+    // is unavailable; a Uint8Array would also satisfy the union.
+    const font: SatoriFont = {
+      name: "Inter",
+      data: new ArrayBuffer(8),
+      weight: 700,
+    };
+    let detected: SatoriLayoutNode | undefined;
+
+    const plate = createSvgOg({
+      component: () => ({
+        type: "div",
+        props: {
+          style: { display: "flex", width: "100%", height: "100%" },
+          children: "card",
+        },
+      }),
+      alt: () => "card",
+      fonts: () => [font],
+      satori: {
+        onNodeDetected: (node) => {
+          detected = node;
+        },
+        loadAdditionalAsset: (lang, segment) => Promise.resolve(segment + lang),
+      },
+    });
+
+    export default plate;
+  `,
+  );
+  const bareTsc = execFileSync(
+    process.execPath,
+    [join(bare, "node_modules", "typescript", "bin", "tsc"), "-p", join(bare, "tsconfig.json")],
+    { cwd: bare, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
+  ).toString();
+  if (bareTsc.includes("error")) {
+    throw new Error(`Isomorphic TypeScript consumer failed to compile: ${bareTsc}`);
+  }
+
   // Issue #58: a resolver-injection smoke — a font resolved through a
   // supplied `resolvePackage` hook rather than node_modules.
   const resolverSmoke = `
@@ -442,7 +514,7 @@ try {
   runModule(resolverSmoke, standalone);
 
   process.stdout.write(
-    `Verified ${packed[0].filename} exports, CLI, and both consumer installs.\n`,
+    `Verified ${packed[0].filename} exports, CLI, and all consumer installs.\n`,
   );
 } finally {
   rmSync(temporary, { recursive: true, force: true });
