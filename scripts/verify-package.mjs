@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -176,13 +177,58 @@ try {
     { cwd: consumer, stdio: "inherit" },
   );
 
-  const cli = spawnSync(
+  const cliPath = join(consumer, "node_modules", "metaplate", "dist", "cli.js");
+
+  const usage = spawnSync(process.execPath, [cliPath], {
+    cwd: consumer,
+    encoding: "utf8",
+  });
+  if (usage.status !== 1 || !usage.stderr.includes("Usage: metaplate verify")) {
+    throw new Error("Installed CLI did not return its expected usage error.");
+  }
+
+  // The CLI's happy path had never run against real files outside the repo.
+  // Copy the fixtures beside the consumer and verify a mixed-format group.
+  for (const fixture of ["card.jpg", "icon.jpg", "card-lossy.webp"]) {
+    copyFileSync(join(root, "tests", "fixtures", fixture), join(consumer, fixture));
+  }
+
+  const verified = spawnSync(
     process.execPath,
-    [join(consumer, "node_modules", "metaplate", "dist", "cli.js")],
+    [
+      cliPath,
+      "verify",
+      "--size",
+      "1200x630",
+      "card.jpg",
+      "card-lossy.webp",
+      "--size",
+      "512x512",
+      "icon.jpg",
+    ],
     { cwd: consumer, encoding: "utf8" },
   );
-  if (cli.status !== 1 || !cli.stderr.includes("Usage: metaplate verify")) {
-    throw new Error("Installed CLI did not return its expected usage error.");
+  const expected = [
+    "✓ card.jpg 1200x630",
+    "✓ card-lossy.webp 1200x630",
+    "✓ icon.jpg 512x512",
+  ];
+  if (verified.status !== 0 || !expected.every((line) => verified.stdout.includes(line))) {
+    throw new Error(
+      `Installed CLI did not verify a mixed-format group: ${verified.stdout}${verified.stderr}`,
+    );
+  }
+
+  const mismatch = spawnSync(
+    process.execPath,
+    [cliPath, "verify", "--size", "1200x630", "icon.jpg"],
+    { cwd: consumer, encoding: "utf8" },
+  );
+  if (
+    mismatch.status !== 1 ||
+    !mismatch.stderr.includes("Expected 1200x630, received 512x512")
+  ) {
+    throw new Error("Installed CLI did not report a dimension mismatch.");
   }
 
   // Shape two: the standalone consumer, which opts in to the renderer peers
