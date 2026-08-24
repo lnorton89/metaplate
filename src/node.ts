@@ -8,6 +8,12 @@ import {
   type SvgRenderOptions,
 } from "./render.js";
 
+function describe(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value !== "object") return typeof value;
+  return value.constructor?.name ?? "an object";
+}
+
 /** Raw RGBA output, ready for an encoder such as sharp or @jsquash/jpeg. */
 export type RenderedPixels = {
   /** Row-major RGBA bytes, `width * height * 4` long. */
@@ -55,11 +61,22 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
     const image = await rasterize(copy, options);
     if (!definition.output) return image.asPng();
 
-    return definition.output.encode({
+    const encoded = await definition.output.encode({
       pixels: image.pixels,
       width: image.width,
       height: image.height,
     });
+
+    // Without this, a wrong return type surfaces further downstream as a
+    // property access on undefined inside `response`, which reads as a bug in
+    // Metaplate rather than in the encoder the consumer supplied.
+    if (!(encoded instanceof Uint8Array)) {
+      throw new TypeError(
+        `output.encode must return a Uint8Array; received ${describe(encoded)}`,
+      );
+    }
+
+    return encoded;
   }
 
   /**
