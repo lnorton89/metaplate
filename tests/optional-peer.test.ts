@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { optionalPeer } from "../src/optional-peer.js";
+import { loadPeerPair, optionalPeer } from "../src/optional-peer.js";
 
 const peer = { package: "satori", entries: "metaplate/render and metaplate/node" };
 
@@ -60,5 +60,39 @@ describe("optionalPeer", () => {
     const loadPeer = optionalPeer(peer, () => Promise.reject(cause));
 
     await expect(loadPeer()).rejects.toBe(cause);
+  });
+});
+
+describe("loadPeerPair", () => {
+  const missing = (name: string) =>
+    optionalPeer({ package: name, entries: "metaplate/node" }, () =>
+      Promise.reject(missingModule(name)),
+    );
+
+  it("names both packages when neither is installed", async () => {
+    await expect(
+      loadPeerPair(missing("satori"), missing("@resvg/resvg-js"), "metaplate/node"),
+    ).rejects.toThrow(
+      "Cannot find satori and @resvg/resvg-js, required by metaplate/node. Install them with: npm install satori @resvg/resvg-js",
+    );
+  });
+
+  it("reports the single missing package on its own", async () => {
+    await expect(
+      loadPeerPair(() => Promise.resolve("satori"), missing("@resvg/resvg-js"), "metaplate/node"),
+    ).rejects.toThrow("npm install @resvg/resvg-js");
+  });
+
+  it("passes an unrelated failure through", async () => {
+    const cause = new Error("Failed to load native binding");
+    await expect(
+      loadPeerPair(() => Promise.resolve("satori"), () => Promise.reject(cause), "metaplate/node"),
+    ).rejects.toBe(cause);
+  });
+
+  it("returns both values in order", async () => {
+    await expect(
+      loadPeerPair(() => Promise.resolve("a"), () => Promise.resolve("b"), "metaplate/node"),
+    ).resolves.toEqual(["a", "b"]);
   });
 });

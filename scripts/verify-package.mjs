@@ -141,6 +141,25 @@ try {
   `;
   runModule(nextGuidance, consumer);
 
+  const nodeGuidance = `
+    const { createNodeOg } = await import("metaplate/node");
+    const plate = createNodeOg({
+      component: () => null,
+      alt: () => "card",
+      fonts: () => [],
+    });
+
+    try {
+      await plate.render({});
+    } catch (error) {
+      if (!error.message.includes("npm install satori @resvg/resvg-js")) throw error;
+      process.exit(0);
+    }
+
+    throw new Error("metaplate/node rendered without its renderer peers.");
+  `;
+  runModule(nodeGuidance, consumer);
+
   const resolverSmoke = `
     require.resolve("metaplate");
     require.resolve("metaplate/render");

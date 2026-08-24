@@ -6,13 +6,7 @@ import {
   socialImageMetadata,
   type ImageSize,
 } from "./core.js";
-import { optionalPeer } from "./optional-peer.js";
-
-const loadSatori = optionalPeer(
-  { package: "satori", entries: "metaplate/render and metaplate/node" },
-  async (): Promise<typeof import("satori").default> =>
-    (await import("satori")).default,
-);
+import { loadSatori } from "./peers.js";
 
 export const SVG_CONTENT_TYPE = "image/svg+xml" as const;
 

@@ -1,3 +1,5 @@
+export type MissingPeerError = Error & { missingPeer: string };
+
 export type OptionalPeer = {
   /** Package name as it appears in `peerDependencies`. */
   package: string;
@@ -24,6 +26,11 @@ function isMissingPeer(error: unknown, packageName: string): boolean {
   return message.includes(`'${packageName}'`) || message.includes(`"${packageName}"`);
 }
 
+/** Identifies the error this module throws for a peer that is not installed. */
+export function isMissingPeerError(error: unknown): error is MissingPeerError {
+  return error instanceof Error && typeof (error as MissingPeerError).missingPeer === "string";
+}
+
 /**
  * Defers an optional peer import to first use so metadata-only and Next.js
  * installs never resolve the standalone renderer or its native binaries.
@@ -41,13 +48,47 @@ export function optionalPeer<T>(
     pending ??= load().catch((cause: unknown) => {
       pending = undefined;
       if (!isMissingPeer(cause, peer.package)) throw cause;
-      throw new Error(
-        `Cannot find ${peer.package}, required by ${peer.entries}. ` +
-          `Install it with: npm install ${peer.package}`,
-        { cause },
+      throw Object.assign(
+        new Error(
+          `Cannot find ${peer.package}, required by ${peer.entries}. ` +
+            `Install it with: npm install ${peer.package}`,
+          { cause },
+        ),
+        { missingPeer: peer.package },
       );
     });
 
     return pending;
   };
+}
+
+/**
+ * Loads two peers together. An entry point needing both should report both in
+ * one message rather than sending a consumer through consecutive installs.
+ */
+export async function loadPeerPair<A, B>(
+  first: () => Promise<A>,
+  second: () => Promise<B>,
+  entries: string,
+): Promise<[A, B]> {
+  const settled = await Promise.allSettled([first(), second()]);
+  const missing = settled
+    .map((result) => (result.status === "rejected" ? (result.reason as unknown) : undefined))
+    .filter((reason) => isMissingPeerError(reason))
+    .map((reason) => reason.missingPeer);
+
+  if (missing.length > 1) {
+    throw new Error(
+      `Cannot find ${missing.join(" and ")}, required by ${entries}. ` +
+        `Install them with: npm install ${missing.join(" ")}`,
+    );
+  }
+  for (const result of settled) {
+    if (result.status === "rejected") throw result.reason as unknown;
+  }
+
+  return [
+    (settled[0] as PromiseFulfilledResult<A>).value,
+    (settled[1] as PromiseFulfilledResult<B>).value,
+  ];
 }

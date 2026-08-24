@@ -5,6 +5,11 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Changed
+
+- Report both renderer peers at once when `metaplate/node` has neither
+  installed, rather than naming Satori, then Resvg on the following run.
+
 ## [0.2.1] - 2026-08-24
 
 ### Documentation
