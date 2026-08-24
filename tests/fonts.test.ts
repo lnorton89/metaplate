@@ -37,6 +37,13 @@ describe("package fonts", () => {
     expect(new Uint8Array(font!.data)).toEqual(Uint8Array.of(1, 2, 3));
   });
 
+  it("names every directory it searched when a package is missing", async () => {
+    const { nested } = await fixture();
+    expect(() => findPackageDirectory("@fontsource/absent", nested)).toThrow(
+      /Cannot find @fontsource\/absent\. Looked in:/,
+    );
+  });
+
   it("memoizes a declared font set", async () => {
     const { root } = await fixture();
     const loader = packageFontLoader(

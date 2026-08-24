@@ -98,3 +98,11 @@ it("renders an element tree authored without JSX", async () => {
   expect(svg).toMatch(/^<svg/);
   expect(svg).toContain('width="1200"');
 });
+
+it("requires at least one font", async () => {
+  const plate = createSvgOg({ ...definition, fonts: () => [] });
+
+  await expect(plate.renderSvg({ title: "No fonts" })).rejects.toThrow(
+    /at least one font/,
+  );
+});
