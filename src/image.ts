@@ -96,9 +96,9 @@ function pngSize(bytes: Uint8Array): ImageDimensions {
       return dimensions;
     }
 
-    // A zero-length payload here can only be a chunk that claims to end where
-    // it starts; rejecting it keeps the walk from looping forever.
-    if (length === 0) throw new Error(`Not a PNG: ${type} has an empty or truncated payload`);
+    // Zero-length chunks are legal in PNG (the empty IDAT between siblings and
+    // the zero-length IEND are both valid); the walk advances by 12 regardless,
+    // so an empty chunk cannot loop forever.
     if (offset + 12 + length > bytes.byteLength) {
       throw new Error(`Not a PNG: ${type} chunk is truncated`);
     }
@@ -233,10 +233,20 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
     throw new Error(`Not a WebP: unsupported chunk ${chunk}`);
   }
 
+  // An extended (VP8X) container must actually carry an image or animation
+  // payload: a structurally complete RIFF holding only the origin/size header
+  // reports dimensions yet no usable pixels, so it must not verify.
+  const needsPayload = chunk === "VP8X";
+  let sawPayload = false;
+
   // Walk the container so a chunk truncated against the declared RIFF size
   // (for example a missing ALPH or ANIM payload) is caught.
   let offset = 12;
   while (offset + 8 <= expectedEnd) {
+    const child = ascii(bytes, offset, 4);
+    if (needsPayload && (child === "VP8 " || child === "VP8L" || child === "ANMF")) {
+      sawPayload = true;
+    }
     const length = uint32LE(bytes, offset + 4);
     if (offset + 8 + length > expectedEnd) {
       throw new Error("Not a WebP: chunk is truncated");
@@ -245,6 +255,9 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
   }
   if (offset !== expectedEnd) {
     throw new Error("Not a WebP: malformed chunk layout");
+  }
+  if (needsPayload && !sawPayload) {
+    throw new Error("Not a WebP: VP8X container has no image or animation data");
   }
 
   return dimensions;

@@ -1,4 +1,3 @@
-import type { Font, SatoriOptions } from "satori";
 import {
   OG_SIZE,
   assertImageSize,
@@ -10,9 +9,43 @@ import { loadSatori } from "./peers.js";
 
 export const SVG_CONTENT_TYPE = "image/svg+xml" as const;
 
+/**
+ * A font face the standalone renderer passes through to Satori. Declared
+ * structurally so `metaplate/render`'s public type surface stays free of
+ * Satori's declarations, which import React; consumers compiling without
+ * React or @types/react therefore need no library declarations suppressed.
+ */
+export type SatoriFont = {
+  data: ArrayBuffer;
+  name: string;
+  weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
+  style?: "normal" | "italic";
+  lang?: string;
+};
+
+/**
+ * Satori options beyond the width, height, and fonts Metaplate owns. A
+ * React-free mirror of the leaf-level Satori options, so a plate author can
+ * tune these without pulling Satori's React-typed declarations into a
+ * React-free build.
+ */
+export type SatoriOptions = {
+  debug?: boolean;
+  embedFont?: boolean;
+  graphemeImages?: Record<string, string>;
+  onNodeDetected?: (node: SatoriNode) => void;
+  pointScaleFactor?: number;
+  loadAdditionalAsset?: (
+    languageCode: string,
+    segment: string,
+  ) => Promise<string | SatoriFont[]> | string | SatoriFont[];
+  /** Passed through to Satori; its full Tailwind config type is not re-declared. */
+  tailwindConfig?: Record<string, unknown>;
+};
+
 export type StandaloneFontLoader = () =>
-  | Promise<readonly Font[]>
-  | readonly Font[];
+  | Promise<readonly SatoriFont[]>
+  | readonly SatoriFont[];
 
 /**
  * The element tree Satori walks: a `{ type, props }` element — React's JSX
@@ -43,7 +76,7 @@ export type SvgOgDefinition<Copy> = {
   basePath?: string;
   /** Scheme for absolute image URLs, such as `https://example.com`. */
   origin?: string;
-  satori?: Omit<SatoriOptions, "width" | "height" | "fonts">;
+  satori?: SatoriOptions;
 };
 
 /** Defines a framework-neutral social image renderer that emits SVG text. */
@@ -61,11 +94,12 @@ export function createSvgOg<Copy>(definition: SvgOgDefinition<Copy>) {
       throw new Error("Standalone Metaplate renderers require at least one font");
     }
 
-    // SatoriNode is structurally what Satori walks; its own declarations
-    // type the parameter as React's ReactNode, so the boundary cast keeps
-    // this module's type surface free of React.
+    // SatoriNode is structurally what Satori walks; its own declarations type
+    // the parameter as React's ReactNode, so the boundary cast keeps the
+    // public type surface free of React (which is also why `definition.satori`
+    // is cast across the Satori boundary rather than typed against it).
     return satori(definition.component(copy) as Parameters<typeof satori>[0], {
-      ...definition.satori,
+      ...(definition.satori as unknown as Parameters<typeof satori>[1]),
       width: size.width,
       height: size.height,
       fonts: [...fonts],
@@ -94,5 +128,3 @@ export function createSvgOg<Copy>(definition: SvgOgDefinition<Copy>) {
       }),
   });
 }
-
-export type { Font as SatoriFont, SatoriOptions } from "satori";

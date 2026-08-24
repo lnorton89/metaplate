@@ -56,15 +56,36 @@ export function assertImageSize(size: ImageSize): void {
   }
 }
 
-/** Rejects anything that would change the effective path after normalization. */
+/**
+ * Rejects anything that would change the effective path after normalization.
+ * Backslashes are path separators in HTTP(S) URLs, and percent-encoded dot
+ * segments decode to `.`/`..`, so those are rejected alongside the literal
+ * forms rather than emitted for `new URL()` to resolve elsewhere.
+ */
 function assertPathname(value: string, label: string): void {
   if (value.includes("?") || value.includes("#")) {
     throw new Error(`${label} must be a pathname without a query or fragment: ${value}`);
   }
-  for (const segment of value.split("/")) {
+  if (value.includes("\\")) {
+    throw new Error(`${label} must not contain backslashes: ${value}`);
+  }
+  // Percent-encoded dot segments (and encoded separators) decode to traversal
+  // once `new URL()` runs, so the check walks the decoded path rather than the
+  // literal one.
+  for (const segment of decodePath(value).split(/[\\/]/)) {
     if (segment === "." || segment === "..") {
       throw new Error(`${label} must not contain "." or ".." segments: ${value}`);
     }
+  }
+}
+
+/** Percent-decodes a pathname; a malformed escape is left as the literal text. */
+function decodePath(value: string): string {
+  if (!value.includes("%")) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }
 

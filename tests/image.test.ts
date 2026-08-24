@@ -92,6 +92,48 @@ describe("imageDimensions", () => {
     bytes[16] = 0xff;
     expect(() => imageDimensions(bytes)).toThrow(/truncated/);
   });
+
+  it("accepts a zero-length IDAT chunk", () => {
+    // A legal empty IDAT between real siblings must not fail structural checks.
+    const base = completePng(1200, 630);
+    const withEmptyIdat = Uint8Array.from([
+      ...base.subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", []),
+      ...base.subarray(8 + 12 + 13),
+    ]);
+    expect(imageDimensions(withEmptyIdat)).toEqual({
+      width: 1200,
+      height: 630,
+      format: "png",
+    });
+  });
+
+  it("rejects a VP8X container with no image data", () => {
+    // A structurally complete RIFF holding only the VP8X origin/size header
+    // must not verify: it has dimensions but no usable pixels.
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const payload = [0, 0, 0, 0, ...canvas(1199), ...canvas(629)];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x16, 0x00, 0x00, 0x00, // declared size: 30 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      ...payload,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/no image or animation data/);
+  });
+
+  it("accepts a VP8X container that carries a VP8 payload", () => {
+    // card-alpha.webp is VP8X (extended) with an ALPH and a VP8 lossy frame.
+    expect(imageDimensions(fixture("card-alpha.webp"))).toEqual({
+      width: 1200,
+      height: 630,
+      format: "webp",
+    });
+  });
 });
 
 describe("verifyImage", () => {

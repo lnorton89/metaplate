@@ -24,7 +24,7 @@ format-agnostic dimension check.
 
 - **Breaking:** A plate renders exactly one size. The per-render `size`
 override is removed from `render`, `renderSvg`, `renderPixels`, `response`,
-and the Next adapter; `plate.size` is both the definition sizeand the size metadata advertises ([#49]).
+and the Next adapter; `plate.size` is both the definition size and the size metadata advertises ([#49]).
 - **Breaking:** `output` on `createNodeOg` now takes `format` (deriving
 `contentType`) or `contentType` + `checkSignature: false` for unknown
 formats; a bare `contentType` is rejected.
@@ -41,17 +41,21 @@ the package or file is fixed succeeds without recreating the loader ([#52]),
 and it now accepts a `resolvePackage` hook for installs without a
 conventional `node_modules` layout, such as Yarn Plug'n'Play ([#58]).
 - `metaplate/render` and `metaplate/node` declare `component` against a local
-  `SatoriNode` element-tree type instead of React's `ReactNode`, so a
-  TypeScript consumer can author a plain-object plate without React types
-  installed. The package verification compiles a React-free TypeScript
-  consumer against the packed package ([#59]).
+  `SatoriNode` element-tree type instead of React's `ReactNode`, and their
+  public type surfaces ship no React-dependent declaration (fonts and Satori
+  options are declared structurally), so a TypeScript consumer can author a
+  plain-object plate with no React or @types/react installed. The package
+  verification compiles a React-free TypeScript consumer against the packed
+  package with `skipLibCheck` off, so a hidden React dependency is an error
+  ([#59]).
 - Truncated images no longer pass `metaplate verify` when their dimension
 header survives: PNG chunk walks to IEND with at least one IDAT, JPEG walks
 to a terminal EOI, and WebP requires the declared RIFF size to match the
 available bytes and every chunk to stay inside it ([#50]).
-- `socialImagePath` rejects query strings, fragments, and `.`/`..` segments
-in `route`, `basePath`, and `imagePath` instead of silently emitting a URL
-that normalizes somewhere else ([#57]).
+- `socialImagePath` rejects query strings, fragments, backslashes, and `.`/`..`
+segments — including percent-encoded forms such as `%2e%2e` that decode to
+`..` after URL parsing — in `route`, `basePath`, and `imagePath` instead of
+silently emitting a URL that normalizes somewhere else ([#57]).
 
 ### Documentation
 
@@ -59,12 +63,12 @@ that normalizes somewhere else ([#57]).
 (JPEG/WebP examples) rather than hard-coding `image/png`, and the description
 reflects that `render` may return any consumer-encoded format ([#54]).
 
-[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.4.1...HEAD
 [#49]: https://github.com/lnorton89/metaplate/issues/49
 [#50]: https://github.com/lnorton89/metaplate/issues/50
 [#52]: https://github.com/lnorton89/metaplate/issues/52
 [#53]: https://github.com/lnorton89/metaplate/issues/53
 [#54]: https://github.com/lnorton89/metaplate/issues/54
+[#55]: https://github.com/lnorton89/metaplate/issues/55
 [#57]: https://github.com/lnorton89/metaplate/issues/57
 [#58]: https://github.com/lnorton89/metaplate/issues/58
 [#59]: https://github.com/lnorton89/metaplate/issues/59

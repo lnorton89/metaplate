@@ -44,6 +44,37 @@ describe("socialImagePath", () => {
     );
   });
 
+  it.each([
+    "/docs/%2e%2e/admin",
+    "/docs/%2E%2E/admin",
+    "/docs/.%2e/admin",
+    "/docs/%2e./admin",
+    "/%2e",
+    "/%2e%2e",
+    "/docs/./admin/",
+    "/docs/../admin",
+  ])("rejects percent-encoded dot segments in %s", (route) => {
+    // WHATWG URL parsing treats the decoded forms as dot segments, so without
+    // this an origin would normalize `/docs/%2e%2e/admin` into `/admin`.
+    expect(() => socialImagePath(route, "og.png", "", "https://example.com")).toThrow(
+      /dot segments|\.\./,
+    );
+  });
+
+  // A percent-encoded literal that decodes to a normal name, never to `.` or
+  // `..`, must pass; validation rejects dot segments, it does not re-encode.
+  it("tolerates a percent-encoded literal character that is not a dot segment", () => {
+    expect(() => socialImagePath("/docs/%66aq")).not.toThrow();
+    expect(socialImagePath("/docs/%66aq")).toBe("/docs/%66aq/og-image");
+  });
+
+  it.each(["/docs\\admin", "\\docs", "docs\\..\\admin"])(
+    "rejects backslashes as path separators in %s",
+    (route) => {
+      expect(() => socialImagePath(route)).toThrow(/backslash/);
+    },
+  );
+
   it("rejects query and fragment in basePath and imagePath", () => {
     expect(() => socialImagePath("/docs", "og.png", "/proj?x=1")).toThrow(/basePath/);
     expect(() => socialImagePath("/docs", "og?x=1", "/proj")).toThrow(/imagePath/);

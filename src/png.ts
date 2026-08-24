@@ -62,9 +62,9 @@ export function pngDimensions(input: ArrayBuffer | Uint8Array): PngDimensions {
       return dimensions;
     }
 
-    // A zero-length payload here can only be a chunk that claims to end where
-    // it starts; rejecting it keeps the walk from looping forever.
-    if (length === 0) throw new Error(`Not a PNG: ${type} has an empty or truncated payload`);
+    // Zero-length chunks are legal in PNG (an empty IDAT between siblings is
+    // one); the walk advances by 12 either way, so an empty payload cannot
+    // loop forever.
     if (offset + 12 + length > bytes.byteLength) {
       throw new Error(`Not a PNG: ${type} chunk is truncated`);
     }

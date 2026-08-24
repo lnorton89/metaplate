@@ -42,4 +42,15 @@ describe("PNG verification", () => {
     const headerOnly = Uint8Array.from(pngHeader(1200, 630).subarray(0, 24));
     expect(() => pngDimensions(headerOnly)).toThrow(/missing IEND/);
   });
+
+  it("accepts legal zero-length IDAT chunks", () => {
+    // Zero-length data chunks are legal PNG; an empty IDAT beside a real one
+    // must not be treated as a truncated or malformed file.
+    const withEmptyIdat = Uint8Array.from([
+      ...pngHeader(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", []),
+      ...pngHeader(1200, 630).subarray(8 + 12 + 13),
+    ]);
+    expect(pngDimensions(withEmptyIdat)).toEqual({ width: 1200, height: 630 });
+  });
 });

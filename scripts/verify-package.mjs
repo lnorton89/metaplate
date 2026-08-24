@@ -324,8 +324,9 @@ try {
   // Issue #59: the README promises plain `{ type, props }` authoring with no
   // React at all. Compile a TypeScript consumer against the packed package
   // with no React/@types/react installed and a plain-object component; the
-  // type surface must carry it. (satori itself declares a ReactNode import,
-  // so the consumer compiler needs `skipLibCheck`.)
+  // type surface must carry it. `skipLibCheck` is deliberately off so that a
+  // React dependency hiding in any declaration is a hard error rather than a
+  // suppressed one.
   writeFileSync(
     join(standalone, "tsconfig.json"),
     JSON.stringify({
@@ -334,7 +335,6 @@ try {
         noEmit: true,
         module: "nodenext",
         moduleResolution: "nodenext",
-        skipLibCheck: true,
         types: ["node"],
       },
       include: ["react-free.tsx"],
