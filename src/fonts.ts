@@ -42,6 +42,38 @@ export type PackageFontOptions = {
   resolvePackage?: (packageName: string) => string | undefined;
 };
 
+const PACKAGE_SEGMENT = /^[a-z0-9][a-z0-9._~-]*$/i;
+
+function assertPackageName(packageName: string): void {
+  const segments = packageName.split("/");
+  const valid = packageName.startsWith("@")
+    ? segments.length === 2 &&
+      PACKAGE_SEGMENT.test(segments[0]!.slice(1)) &&
+      PACKAGE_SEGMENT.test(segments[1]!)
+    : segments.length === 1 && PACKAGE_SEGMENT.test(segments[0]!);
+  if (!valid) {
+    throw new Error(`Invalid font package name: ${packageName}`);
+  }
+}
+
+function resolveFontFile(packageDirectory: string, file: string): string {
+  const root = path.resolve(packageDirectory);
+  if (!file || path.isAbsolute(file)) {
+    throw new Error(`Font file must stay within its package directory: ${file}`);
+  }
+  const target = path.resolve(root, file);
+  const relative = path.relative(root, target);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`Font file must stay within its package directory: ${file}`);
+  }
+  return target;
+}
+
 /**
  * Resolves a package through the active runtime, which understands the
  * install Metaplate is running in — npm and Yarn classic layouts, pnpm
@@ -94,6 +126,7 @@ export function findPackageDirectory(
   cwd = process.cwd(),
   resolvePackage?: (packageName: string) => string | undefined,
 ): string {
+  assertPackageName(packageName);
   // `createRequire` requires an absolute filename, so resolve a possibly
   // relative `cwd` once at the public boundary and reuse the absolute value
   // for both the runtime resolver and the upward walk below.
@@ -134,7 +167,7 @@ export async function loadPackageFonts(
         options.cwd,
         options.resolvePackage,
       );
-      const bytes = await readFile(path.join(directory, font.file));
+      const bytes = await readFile(resolveFontFile(directory, font.file));
       const data = bytes.buffer.slice(
         bytes.byteOffset,
         bytes.byteOffset + bytes.byteLength,

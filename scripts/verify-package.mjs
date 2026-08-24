@@ -3,8 +3,10 @@ import {
   copyFileSync,
   existsSync,
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,6 +20,7 @@ const consumer = join(temporary, "consumer");
 const standalone = join(temporary, "standalone");
 const bare = join(temporary, "bare");
 const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const lockfile = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
 const npmCli = process.env.npm_execpath;
 
 if (!npmCli) {
@@ -41,6 +44,7 @@ function install(directory, specifiers) {
       "--prefix",
       directory,
       "--ignore-scripts",
+      "--offline",
       "--no-audit",
       "--no-fund",
     ],
@@ -55,11 +59,20 @@ function runModule(source, cwd) {
   });
 }
 
-/** Installs the peer version this repository already pins and tests against. */
-function peerSpecifier(name) {
-  const range = manifest.devDependencies[name];
-  if (!range) throw new Error(`No pinned range available to install ${name}.`);
-  return `${name}@${range}`;
+/** Links exactly the dependency tree npm ci verified from package-lock.json. */
+function linkLockedDependency(directory, name) {
+  const entry = lockfile.packages[`node_modules/${name}`];
+  if (!entry?.version) throw new Error(`No locked version available for ${name}.`);
+  const source = join(root, "node_modules", ...name.split("/"));
+  const installed = JSON.parse(readFileSync(join(source, "package.json"), "utf8"));
+  if (installed.version !== entry.version) {
+    throw new Error(
+      `${name} installation ${installed.version} does not match lockfile ${entry.version}.`,
+    );
+  }
+  const destination = join(directory, "node_modules", ...name.split("/"));
+  mkdirSync(resolve(destination, ".."), { recursive: true });
+  symlinkSync(source, destination, process.platform === "win32" ? "junction" : "dir");
 }
 
 try {
@@ -279,14 +292,16 @@ try {
 
   // Shape two: the standalone consumer, which opts in to the renderer peers
   // and has to produce real PNG bytes from the packed tarball.
-  install(standalone, [
-    archive,
-    peerSpecifier("satori"),
-    peerSpecifier("@resvg/resvg-js"),
-    peerSpecifier("@fontsource/inter"),
-    peerSpecifier("typescript"),
+  install(standalone, [archive]);
+  for (const dependency of [
+    "satori",
+    "@resvg/resvg-js",
+    "@fontsource/inter",
+    "typescript",
     "@types/node",
-  ]);
+  ]) {
+    linkLockedDependency(standalone, dependency);
+  }
 
   const standaloneSmoke = `
     const { packageFontLoader } = await import("metaplate/fonts");
@@ -405,7 +420,10 @@ try {
   // Compile that second consumer here — only TypeScript and the renderer peer
   // installed, `skipLibCheck` off, so a hidden Node or React dependency in any
   // declaration is a hard error rather than a suppressed one.
-  install(bare, [archive, peerSpecifier("satori"), peerSpecifier("typescript")]);
+  install(bare, [archive]);
+  for (const dependency of ["satori", "typescript"]) {
+    linkLockedDependency(bare, dependency);
+  }
 
   // Make the smoke airtight: `types: []` stops TypeScript from auto-including
   // any @types package that might arrive transitively, and the explicit

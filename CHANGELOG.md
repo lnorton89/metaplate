@@ -40,10 +40,12 @@ numeric overflow to `Infinity` as well as zero ([#53]).
 
 - `packageFontLoader` no longer memoizes a rejected load; a later call after
 the package or file is fixed succeeds without recreating the loader ([#52]),
-it accepts a `resolvePackage` hook for installs without a conventional
-`node_modules` layout, such as Yarn Plug'n'Play, and it resolves a relative
-`cwd` once at the public boundary so the runtime resolver never receives a
-relative `createRequire` filename ([#58]).
+  it accepts a `resolvePackage` hook for installs without a conventional
+  `node_modules` layout, such as Yarn Plug'n'Play, and it resolves a relative
+  `cwd` once at the public boundary so the runtime resolver never receives a
+  relative `createRequire` filename. Package names and font file paths are
+  validated so a declaration cannot escape its resolved package directory
+  ([#58]).
 - `metaplate/render` and `metaplate/node` declare `component` against a local
   `SatoriNode` element-tree type instead of React's `ReactNode`, and their
   public type surfaces ship no React- or Node-dependent declaration:
@@ -94,6 +96,10 @@ normalization), and literal or percent-encoded `.`/`..` segments — `%2e%2e`,
 `.%2e`, `%2e.`, decoded independently per segment so a single malformed
 escape cannot disable elsewhere — in `route`, `basePath`, and `imagePath`
 instead of silently emitting a URL that normalizes somewhere else ([#57]).
+- Release package smokes install only the local Metaplate tarball offline and
+  link renderer/tool dependencies from the exact `npm ci` installation after
+  checking their versions against `package-lock.json`, so verification never
+  executes a newly resolved loose-range peer before the release is packed.
 
 ### Documentation
 

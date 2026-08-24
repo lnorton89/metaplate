@@ -44,6 +44,30 @@ describe("package fonts", () => {
     );
   });
 
+  it.each(["../outside", "@scope/../outside", "C:\\outside"])(
+    "rejects an invalid package name (%s)",
+    async (packageName) => {
+      const { root } = await fixture();
+      expect(() => findPackageDirectory(packageName, root)).toThrow(/Invalid font package name/);
+    },
+  );
+
+  it("rejects font paths that escape a normally resolved package", async () => {
+    const { root, packageDirectory } = await fixture();
+    const outside = path.join(root, "outside.woff");
+    await writeFile(outside, Uint8Array.of(6, 6, 6));
+
+    await expect(loadPackageFonts(
+      [{
+        name: "Outside",
+        package: "@fontsource/example",
+        file: path.relative(packageDirectory, outside),
+        weight: 400,
+      }],
+      { cwd: root },
+    )).rejects.toThrow(/must stay within its package directory/);
+  });
+
   it("accepts a relative cwd", async () => {
     // `createRequire` requires an absolute filename, so a relative `cwd` must
     // be resolved once at the public boundary instead of reaching the runtime
@@ -103,6 +127,24 @@ describe("package fonts", () => {
 
     expect(font!.name).toBe("Example");
     expect(new Uint8Array(font!.data)).toEqual(Uint8Array.of(9, 8, 7));
+  });
+
+  it("rejects font paths that escape an injected package directory", async () => {
+    const { root } = await fixture();
+    const elsewhere = path.join(root, "elsewhere");
+    const outside = path.join(root, "outside.woff");
+    await mkdir(elsewhere, { recursive: true });
+    await writeFile(outside, Uint8Array.of(6, 6, 6));
+
+    await expect(loadPackageFonts(
+      [{
+        name: "Outside",
+        package: "@fontsource/example",
+        file: path.relative(elsewhere, outside),
+        weight: 400,
+      }],
+      { cwd: root, resolvePackage: () => elsewhere },
+    )).rejects.toThrow(/must stay within its package directory/);
   });
 
   it("falls back to the normal layout when the resolver declines", async () => {
