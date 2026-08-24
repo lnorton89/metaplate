@@ -55,6 +55,9 @@ npm run build
   use so a lean install stays importable. Test behavior both with and without
   optional peers when changing package boundaries.
 - Public APIs need type coverage, behavior tests, and README documentation.
+- `examples/` is documentation that compiles. It type-checks against `src/`
+  through `tsconfig.examples.json`, so renaming or resigning a public export
+  breaks the example rather than the consumer who copied it.
 - Do not commit `dist/`, coverage output, logs, `node_modules/`, or `.tgz`
   package archives.
 - Keep Node.js 20 compatibility. CI also exercises current LTS lines and the

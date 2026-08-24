@@ -67,12 +67,13 @@
   },
   "scripts": {
     "build": "tsup",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm pack --dry-run",
+    "check": "npm run lint && npm run typecheck && npm run typecheck:examples && npm test && npm run build && npm pack --dry-run",
     "check:package": "node scripts/verify-package.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc -p tsconfig.examples.json --noEmit"
   },
   "peerDependencies": {
     "@resvg/resvg-js": ">=2.6.2",
