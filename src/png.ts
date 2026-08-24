@@ -67,6 +67,9 @@ export function pngDimensions(input: ArrayBuffer | Uint8Array): PngDimensions {
   }
 
   const dimensions = { width: uint32(bytes, 16), height: uint32(bytes, 20) };
+  if (dimensions.width === 0 || dimensions.height === 0) {
+    throw new Error("Not a PNG: IHDR width and height must be greater than zero");
+  }
   let offset = 8 + 12 + 13;
   let idatBytes = 0;
   // The first two bytes of the concatenated IDAT stream, captured across

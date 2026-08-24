@@ -54,6 +54,13 @@ describe("imageDimensions", () => {
     expect(imageDimensions(png)).toEqual({ width: 1200, height: 630, format: "png" });
   });
 
+  it.each([[0, 630], [1200, 0]])(
+    "rejects PNG zero dimensions through the generic reader (%ix%i)",
+    (width, height) => {
+      expect(() => imageDimensions(completePng(width, height))).toThrow(/greater than zero/);
+    },
+  );
+
   it("rejects a real PNG truncated after its IHDR header", () => {
     const real = fixture("card.png");
     // Signature (8) + IHDR chunk (12 + 13): cut right after the header.

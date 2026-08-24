@@ -30,6 +30,13 @@ describe("PNG verification", () => {
     expect(pngDimensions(pngHeader(1200, 630))).toEqual({ width: 1200, height: 630 });
   });
 
+  it.each([[0, 630], [1200, 0]])("rejects zero IHDR dimensions (%ix%i)", (width, height) => {
+    expect(() => pngDimensions(pngHeader(width, height))).toThrow(/greater than zero/);
+    expect(() => verifyPng(pngHeader(width, height), { width, height })).toThrow(
+      /greater than zero/,
+    );
+  });
+
   it("rejects non-PNG input", () => {
     expect(() => pngDimensions(new Uint8Array(24))).toThrow(/invalid signature/);
   });
