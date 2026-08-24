@@ -89,7 +89,7 @@ try {
   // the standalone renderer or its native binaries.
   install(consumer, [archive]);
 
-  for (const peer of ["satori", "@resvg/resvg-js"]) {
+  for (const peer of ["satori", "@resvg/resvg-js", "next"]) {
     if (existsSync(join(consumer, "node_modules", peer))) {
       throw new Error(`A lean install pulled the optional peer ${peer}.`);
     }
@@ -99,6 +99,7 @@ try {
     await import("metaplate");
     await import("metaplate/render");
     await import("metaplate/node");
+    await import("metaplate/next");
     await import("metaplate/fonts");
     await import("metaplate/png");
   `;
@@ -125,10 +126,26 @@ try {
   `;
   runModule(guidance, consumer);
 
+  const nextGuidance = `
+    const { createNextOg } = await import("metaplate/next");
+    const plate = createNextOg({ component: () => null, alt: () => "card" });
+
+    try {
+      await plate.render({});
+    } catch (error) {
+      if (!error.message.includes("npm install next")) throw error;
+      process.exit(0);
+    }
+
+    throw new Error("metaplate/next rendered without its next peer.");
+  `;
+  runModule(nextGuidance, consumer);
+
   const resolverSmoke = `
     require.resolve("metaplate");
     require.resolve("metaplate/render");
     require.resolve("metaplate/node");
+    require.resolve("metaplate/next");
     require.resolve("metaplate/fonts");
     require.resolve("metaplate/png");
   `;

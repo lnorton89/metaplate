@@ -1,4 +1,3 @@
-import { ImageResponse } from "next/og";
 import type { ReactElement } from "react";
 import {
   OG_CONTENT_TYPE,
@@ -7,9 +6,18 @@ import {
   socialImageMetadata,
   type ImageSize,
 } from "./core.js";
+import { optionalPeer } from "./optional-peer.js";
 
-type ImageResponseOptions = NonNullable<ConstructorParameters<typeof ImageResponse>[1]>;
+type ImageResponseConstructor = typeof import("next/og").ImageResponse;
+type ImageResponseOptions = NonNullable<
+  ConstructorParameters<ImageResponseConstructor>[1]
+>;
 type ImageResponseFont = NonNullable<ImageResponseOptions["fonts"]>[number];
+
+const loadImageResponse = optionalPeer(
+  { package: "next", entries: "metaplate/next" },
+  async (): Promise<ImageResponseConstructor> => (await import("next/og")).ImageResponse,
+);
 
 export type FontLoader = () =>
   | Promise<readonly ImageResponseFont[]>
@@ -50,6 +58,7 @@ export function createNextOg<Copy>(definition: NextOgDefinition<Copy>) {
       ...(fonts ? { fonts: [...fonts] } : {}),
     };
 
+    const ImageResponse = await loadImageResponse();
     return new ImageResponse(definition.component(copy), responseOptions);
   }
 
@@ -64,5 +73,3 @@ export function createNextOg<Copy>(definition: NextOgDefinition<Copy>) {
       socialImageMetadata(route, definition.alt(copy), { size, imagePath, basePath }),
   });
 }
-
-export { ImageResponse };
