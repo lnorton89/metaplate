@@ -171,3 +171,32 @@ it(
   },
   20_000,
 );
+
+// The README promises row-major RGBA, and every consumer encoder is configured
+// from that promise. A channel-order regression would leave dimensions correct
+// and every card's colours wrong, so the bytes are asserted directly.
+it(
+  "returns pixels in row-major RGBA order",
+  async () => {
+    const plate = createNodeOg({
+      ...definition,
+      component: () => (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            background: "rgb(0,170,255)",
+          }}
+        />
+      ),
+    });
+
+    const { pixels, width, height } = await plate.renderPixels({ title: "Colour" });
+    const centre = (Math.floor(height / 2) * width + Math.floor(width / 2)) * 4;
+
+    expect(Array.from(pixels.slice(0, 4))).toEqual([0, 170, 255, 255]);
+    expect(Array.from(pixels.slice(centre, centre + 4))).toEqual([0, 170, 255, 255]);
+  },
+  20_000,
+);
