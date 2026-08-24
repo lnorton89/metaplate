@@ -5,6 +5,8 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-24
+
 ### Added
 
 - `renderPixels` on `metaplate/node`, returning the raw RGBA pixmap so a
@@ -112,7 +114,8 @@ All notable changes to Metaplate are documented in this file. The project uses
 - Typed package exports for framework-neutral, rendering, Node.js, Next.js,
   font, and PNG entry points.
 
-[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lnorton89/metaplate/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/lnorton89/metaplate/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/lnorton89/metaplate/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/lnorton89/metaplate/compare/v0.1.1...v0.1.2
