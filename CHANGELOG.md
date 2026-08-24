@@ -5,6 +5,15 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Fixed
+
+- Attribute a failed optional-peer import to the package that is actually
+  missing. A broken dependency tree inside an installed peer reports the same
+  error code, so the install recipe could name a package the consumer already
+  had.
+- Reject a zero width or height in `metaplate verify --size` rather than
+  reporting the mismatch it always produces against the file.
+
 ## [0.2.0] - 2026-08-23
 
 ### Changed
