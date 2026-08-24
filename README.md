@@ -13,6 +13,27 @@ and Twitter metadata, package-based font loading, and PNG verification. It
 works with plain Node, Astro, SvelteKit, Remix, Express, static build scripts,
 and Next.js.
 
+## Contents
+
+- [Install](#install)
+  - [Optional peers](#optional-peers)
+- [Framework-neutral renderer](#framework-neutral-renderer)
+  - [Other output formats](#other-output-formats)
+  - [Astro, SvelteKit, Remix, and other Fetch-based routes](#astro-sveltekit-remix-and-other-fetch-based-routes)
+  - [Express and build scripts](#express-and-build-scripts)
+  - [Authoring without a JSX toolchain](#authoring-without-a-jsx-toolchain)
+  - [SVG-only rendering](#svg-only-rendering)
+- [Next.js adapter](#nextjs-adapter)
+- [Metadata without a renderer](#metadata-without-a-renderer)
+  - [Next.js static export and `basePath`](#nextjs-static-export-and-basepath)
+- [Fonts](#fonts)
+- [Plate constraints](#plate-constraints)
+- [Static hosts](#static-hosts)
+- [Verify generated files](#verify-generated-files)
+- [Entry points](#entry-points)
+- [Design lineage](#design-lineage)
+- [License](#license)
+
 ## Install
 
 Metaplate has no runtime dependencies of its own. Each entry point declares the
