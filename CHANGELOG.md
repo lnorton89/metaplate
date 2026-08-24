@@ -3,7 +3,7 @@
 All notable changes to Metaplate are documented in this file. The project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - 2026-08-24
 
 ### Added
 
@@ -12,12 +12,12 @@ definition, producing crawler-ready absolute image URLs while untouched
 relative paths stay the default. `basePath`, route, and `imagePath` compose
 beneath it, and the origin must not carry credentials — userinfo such as
 `https://user:pass@example.com` is rejected rather than leaked into
-crawler-facing metadata.
+crawler-facing metadata ([#56]).
 - A `format` form of `output` on `createNodeOg`. The media type derives from
 it, the encoded bytes' signature is checked against it on every render, and
 the media type is carried into metadata (`og:image:type` / `twitter:image:type`)
 and the descriptor `type`. A declared-but-unrecognized format opts out
-through `contentType` + `checkSignature: false`.
+through `contentType` + `checkSignature: false` ([#51]).
 - `--format png|jpeg|webp` on `metaplate verify`, so a `.jpg` file that
 actually holds WebP or PNG fails the build check instead of slipping past the
 format-agnostic dimension check.
@@ -62,24 +62,32 @@ relative `createRequire` filename ([#58]).
   consumer that installs no `@types/node` or React types, sets `types: []`,
   and asserts those type packages are absent — so a hidden React or Node
   dependency or a broken mirror is an error ([#59]).
+- `metaplate/node` also mirrors `ResvgRenderOptions` structurally instead of
+  importing Resvg's Node-dependent declarations, and `renderPixels` explicitly
+  returns `RenderedPixels` so its generated declaration exposes `Uint8Array`
+  rather than Resvg's narrower `Buffer`. The no-React/no-Node package smoke
+  imports both standalone renderer entry points and exercises these types.
 - `metaplate verify` is a structural/truncation check, identical through
 `metaplate/png` and `metaplate/image`, that rejects truncated files and
 obvious header shells even when their dimension header survives: PNG walks
 to a non-empty concatenated IDAT stream whose bytes form a zlib envelope — a
 deflate CMF/FLG header with room for the Adler-32 trailer — then a
-zero-payload IEND (empty IDAT siblings stay legal); JPEG validates the SOF
+zero-payload IEND (empty IDAT siblings stay legal, but IDAT chunks must remain
+consecutive, and zero IHDR dimensions are rejected); JPEG validates the SOF
 frame header (8 + 3·Nf bytes) and every SOS segment, parses marker segments
 that appear between entropy-coded data (progressive multi-scan files
-included) instead of counting them as compressed bytes, and requires
-entropy-coded data before the terminal EOI; WebP requires the declared RIFF
-size to match the bytes, every chunk to stay inside it, the first chunk to
+included) instead of counting them as compressed bytes, and requires each
+scan to contain entropy-coded data before another marker ends it; WebP
+requires the declared RIFF size to match the bytes, every chunk to stay inside
+it, the first chunk to
 declare enough payload for every field read (never reading dimensions across
 the chunk boundary into RIFF padding), and an extended VP8X container to
 carry a `VP8 `/`VP8L`/`ANMF` chunk whose payload is structurally real — the
 VP8 key-frame start code, the VP8L `0x2F` signature, or a fully walked ANMF
-frame (no nested animation frames, sub-chunks must fill the declared length)
-with a nested image bitstream. It is not a full decode: a file whose headers
-are intact but whose payload cannot decode is outside its scope ([#50]).
+frame (no nested animation frames, duplicate ALPH/image bitstreams, or
+malformed tails) with exactly one nested image bitstream. It is not a full
+decode: a file whose headers are intact but whose payload cannot decode is
+outside its scope ([#50]).
 - `socialImagePath` rejects query strings, fragments, backslashes, ASCII tab
 and newline characters (which WHATWG URL parsing strips before
 normalization), and literal or percent-encoded `.`/`..` segments — `%2e%2e`,
@@ -95,10 +103,12 @@ reflects that `render` may return any consumer-encoded format ([#54]).
 
 [#49]: https://github.com/lnorton89/metaplate/issues/49
 [#50]: https://github.com/lnorton89/metaplate/issues/50
+[#51]: https://github.com/lnorton89/metaplate/issues/51
 [#52]: https://github.com/lnorton89/metaplate/issues/52
 [#53]: https://github.com/lnorton89/metaplate/issues/53
 [#54]: https://github.com/lnorton89/metaplate/issues/54
 [#55]: https://github.com/lnorton89/metaplate/issues/55
+[#56]: https://github.com/lnorton89/metaplate/issues/56
 [#57]: https://github.com/lnorton89/metaplate/issues/57
 [#58]: https://github.com/lnorton89/metaplate/issues/58
 [#59]: https://github.com/lnorton89/metaplate/issues/59
@@ -235,7 +245,8 @@ reflects that `render` may return any consumer-encoded format ([#54]).
 - Typed package exports for framework-neutral, rendering, Node.js, Next.js,
   font, and PNG entry points.
 
-[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/lnorton89/metaplate/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/lnorton89/metaplate/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/lnorton89/metaplate/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/lnorton89/metaplate/compare/v0.2.1...v0.3.0
