@@ -407,6 +407,16 @@ try {
   // rather than a suppressed one.
   install(bare, [archive, peerSpecifier("satori"), peerSpecifier("typescript")]);
 
+  // Make the smoke airtight: `types: []` stops TypeScript from auto-including
+  // any @types package that might arrive transitively, and the explicit
+  // absence checks fail the run if react, @types/react, or @types/node are
+  // ever pulled in by the install (for example as a new peer).
+  for (const forbidden of ["react", "@types/react", "@types/node"]) {
+    if (existsSync(join(bare, "node_modules", forbidden))) {
+      throw new Error(`The isomorphic consumer pulled ${forbidden}.`);
+    }
+  }
+
   writeFileSync(
     join(bare, "tsconfig.json"),
     JSON.stringify({
@@ -415,6 +425,7 @@ try {
         noEmit: true,
         module: "nodenext",
         moduleResolution: "nodenext",
+        types: [],
       },
       include: ["isomorphic.tsx"],
     }),

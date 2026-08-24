@@ -67,9 +67,11 @@ function pngSize(bytes: Uint8Array): ImageDimensions {
 
 /**
  * JPEG dimensions plus structure. The segment chain is walked from SOI to the
- * frame header (SOF), then past the entropy-coded scan to a terminal EOI
- * marker, so a file truncated mid-scan fails even when its SOF header
- * survives.
+ * frame header (SOF), then through every entropy-coded scan to a terminal EOI
+ * marker. Marker segments that appear between entropy-coded data — including
+ * the SOS segments of progressive multi-scan files — are parsed as markers,
+ * never counted as compressed data, so a file truncated mid-scan or with an
+ * empty scan fails even when its SOF header survives.
  */
 function jpegSize(bytes: Uint8Array): ImageDimensions {
   let offset = 2;
@@ -77,15 +79,63 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
   let height = 0;
   let sawFrame = false;
   let sawScan = false;
-  let scanStart = 0;
+  let inScan = false;
+  let sawEntropy = false;
+  // A marker segment parsed out of the middle of a scan: after it, the scan's
+  // entropy-coded data continues.
+  let resumeScan = false;
 
-  while (offset + 4 <= bytes.byteLength) {
+  while (offset + 2 <= bytes.byteLength) {
+    if (inScan) {
+      // A stuffed 0xFF 0x00 is entropy-coded data.
+      if (bytes[offset] === 0xff && bytes[offset + 1] === 0x00) {
+        offset += 2;
+        sawEntropy = true;
+        continue;
+      }
+      // Restart markers RST0-RST7 sit between entropy-coded segments.
+      if (bytes[offset] === 0xff && bytes[offset + 1]! >= 0xd0 && bytes[offset + 1]! <= 0xd7) {
+        offset += 2;
+        continue;
+      }
+      // 0xFF 0xFF padding before a marker carries no data.
+      if (bytes[offset] === 0xff && bytes[offset + 1] === 0xff) {
+        offset += 1;
+        continue;
+      }
+      if (bytes[offset] === 0xff && bytes[offset + 1] === 0xd9) {
+        // A scan with no entropy-coded bytes before EOI has nothing to decode.
+        if (!sawEntropy) {
+          throw new Error("Not a JPEG: image scan contains no entropy-coded data");
+        }
+        if (offset + 2 !== bytes.byteLength) {
+          throw new Error("Not a JPEG: trailing data after EOI");
+        }
+        return { width, height, format: "jpeg" };
+      }
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        sawEntropy = true;
+        continue;
+      }
+      // Any other 0xFF xx is a marker segment between entropy-coded data:
+      // parse it below, then re-enter the scan.
+      resumeScan = true;
+      inScan = false;
+    }
+
     if (bytes[offset] !== 0xff) throw new Error("Not a JPEG: expected a segment marker");
-
     // Encoders may pad with extra 0xFF bytes before a marker.
     while (offset + 1 < bytes.byteLength && bytes[offset + 1] === 0xff) offset += 1;
-
     const marker = bytes[offset + 1]!;
+
+    if (marker === 0xd9) {
+      if (!sawScan) throw new Error("Not a JPEG: missing image scan (SOS segment)");
+      if (offset + 2 !== bytes.byteLength) {
+        throw new Error("Not a JPEG: trailing data after EOI");
+      }
+      return { width, height, format: "jpeg" };
+    }
     if (marker === 0xda) {
       // Validate the SOS segment itself before trusting the scan that follows.
       // It must declare its length, at least one component and its selectors,
@@ -98,13 +148,20 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
       if (components < 1 || 2 + 1 + components * 2 + 3 !== length) {
         throw new Error("Not a JPEG: malformed SOS segment header");
       }
+      if (!sawFrame) throw new Error("Not a JPEG: no frame header found");
       sawScan = true;
-      scanStart = offset + 2 + length;
-      break;
+      sawEntropy = false;
+      offset += 2 + length;
+      inScan = true;
+      resumeScan = false;
+      continue;
     }
-    if (marker === 0xd9) break;
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
       offset += 2;
+      if (resumeScan) {
+        inScan = true;
+        resumeScan = false;
+      }
       continue;
     }
 
@@ -117,55 +174,26 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
     const isFrameHeader =
       marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
     if (isFrameHeader) {
-      if (length < 8) throw new Error("Not a JPEG: truncated frame header");
+      // The frame header is precision(1) + height(2) + width(2) + Nf(1) plus
+      // 3 bytes per component, so its declared length must be 8 + 3*Nf.
+      if (length < 11) throw new Error("Not a JPEG: truncated frame header");
+      const components = bytes[offset + 9]!;
+      if (length !== 8 + 3 * components) {
+        throw new Error("Not a JPEG: malformed frame header");
+      }
       sawFrame = true;
       height = uint16(bytes, offset + 5);
       width = uint16(bytes, offset + 7);
     }
 
     offset += 2 + length;
-  }
-
-  // The scan's entropy-coded data is unstructured, so skip it byte-wise to
-  // the EOI marker, honouring the 0xFF 0x00 stuffing that keeps 0xFF out of
-  // the data proper. A validated SOS followed immediately by EOI carries no
-  // entropy-coded data, so it must not verify.
-  if (sawScan) {
-    if (!sawFrame) throw new Error("Not a JPEG: no frame header found");
-    let scan = scanStart;
-    let sawEntropy = false;
-    while (scan + 1 < bytes.byteLength) {
-      // A stuffed 0xFF 0x00 is entropy-coded data.
-      if (bytes[scan] === 0xff && bytes[scan + 1] === 0x00) {
-        scan += 2;
-        sawEntropy = true;
-        continue;
-      }
-      // Restart markers RST0-RST7 sit between entropy-coded segments.
-      if (bytes[scan] === 0xff && bytes[scan + 1]! >= 0xd0 && bytes[scan + 1]! <= 0xd7) {
-        scan += 2;
-        continue;
-      }
-      // 0xFF 0xFF padding before a marker carries no data.
-      if (bytes[scan] === 0xff && bytes[scan + 1] === 0xff) {
-        scan += 1;
-        continue;
-      }
-      if (bytes[scan] === 0xff && bytes[scan + 1] === 0xd9) {
-        if (!sawEntropy) {
-          throw new Error("Not a JPEG: image scan contains no entropy-coded data");
-        }
-        if (scan + 2 !== bytes.byteLength) {
-          throw new Error("Not a JPEG: trailing data after EOI");
-        }
-        return { width, height, format: "jpeg" };
-      }
-      scan += 1;
-      sawEntropy = true;
+    if (resumeScan) {
+      inScan = true;
+      resumeScan = false;
     }
-    throw new Error("Not a JPEG: missing EOI marker after image data");
   }
 
+  if (inScan) throw new Error("Not a JPEG: missing EOI marker after image data");
   if (!sawFrame) throw new Error("Not a JPEG: no frame header found");
   throw new Error("Not a JPEG: missing image scan (SOS segment)");
 }
@@ -186,8 +214,10 @@ function vp8lHasSignature(bytes: Uint8Array, payloadOffset: number): boolean {
 }
 
 /**
- * Walks the sub-chunks of an ANMF frame (after its 16-byte frame header) and
+ * Walks every sub-chunk of an ANMF frame (after its 16-byte frame header) and
  * reports whether any carries a structurally valid VP8 or VP8L bitstream.
+ * The whole frame is walked — a plausible first image chunk cannot hide a
+ * malformed tail — and the sub-chunks must fill the declared length exactly.
  * A frame header alone is not image data.
  */
 function anmfHasImageData(
@@ -197,15 +227,25 @@ function anmfHasImageData(
 ): boolean {
   const end = frameOffset + frameLength;
   let offset = frameOffset + 16;
+  let sawImage = false;
   while (offset + 8 <= end) {
+    const child = ascii(bytes, offset, 4);
     const length = uint32LE(bytes, offset + 4);
     if (offset + 8 + length > end) {
       throw new Error("Not a WebP: ANMF frame chunk is truncated");
     }
-    if (imageChunkHasData(bytes, offset, length)) return true;
+    // WebP frame data is optional ALPH plus one VP8/VP8L bitstream and
+    // optional unknown chunks; animation frames never nest.
+    if (child === "ANMF") {
+      throw new Error("Not a WebP: ANMF frame cannot nest another ANMF frame");
+    }
+    if (imageChunkHasData(bytes, offset, length, "in ANMF frame")) sawImage = true;
     offset += 8 + length + (length % 2);
   }
-  return false;
+  if (offset !== end) {
+    throw new Error("Not a WebP: malformed ANMF frame layout");
+  }
+  return sawImage;
 }
 
 /**
@@ -213,20 +253,25 @@ function anmfHasImageData(
  * carries structurally valid image data, false for ancillary or empty/stub
  * chunks, and a throw when a chunk that claims to be image data is malformed.
  */
-function imageChunkHasData(bytes: Uint8Array, chunkOffset: number, length: number): boolean {
+function imageChunkHasData(
+  bytes: Uint8Array,
+  chunkOffset: number,
+  length: number,
+  where: string,
+): boolean {
   const child = ascii(bytes, chunkOffset, 4);
   const payloadOffset = chunkOffset + 8;
   if (child === "VP8 ") {
     if (length < 10) return false;
     if (!vp8HasKeyFrame(bytes, payloadOffset)) {
-      throw new Error("Not a WebP: malformed VP8 frame in VP8X container");
+      throw new Error(`Not a WebP: malformed VP8 frame ${where}`);
     }
     return true;
   }
   if (child === "VP8L") {
     if (length < 5) return false;
     if (!vp8lHasSignature(bytes, payloadOffset)) {
-      throw new Error("Not a WebP: malformed VP8L frame in VP8X container");
+      throw new Error(`Not a WebP: malformed VP8L frame ${where}`);
     }
     return true;
   }
@@ -257,9 +302,14 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
   }
 
   const chunk = ascii(bytes, 12, 4);
+  // The first chunk's declared payload length must cover every field read
+  // below: never read dimensions across the declared chunk boundary, where
+  // the RIFF padding byte could masquerade as image data.
+  const firstLength = uint32LE(bytes, 16);
   let dimensions: ImageDimensions;
 
   if (chunk === "VP8 ") {
+    if (firstLength < 10) throw new Error("Not a WebP: VP8 chunk is too short");
     // Key frame: a 3-byte frame tag, the 0x9D012A start code, then 16-bit
     // little-endian width and height whose top two bits are a scale factor.
     if (!vp8HasKeyFrame(bytes, 20)) {
@@ -271,6 +321,7 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
       format: "webp",
     };
   } else if (chunk === "VP8L") {
+    if (firstLength < 5) throw new Error("Not a WebP: VP8L chunk is too short");
     // The lossless bitstream opens with its 0x2F signature byte; the canvas
     // dimensions follow in the next four bytes.
     if (!vp8lHasSignature(bytes, 20)) {
@@ -283,6 +334,7 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
       format: "webp",
     };
   } else if (chunk === "VP8X") {
+    if (firstLength < 10) throw new Error("Not a WebP: VP8X chunk is too short");
     dimensions = {
       width: uint24LE(bytes, 24) + 1,
       height: uint24LE(bytes, 27) + 1,
@@ -306,7 +358,7 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
     if (offset + 8 + length > expectedEnd) {
       throw new Error("Not a WebP: chunk is truncated");
     }
-    if (needsPayload && imageChunkHasData(bytes, offset, length)) {
+    if (needsPayload && imageChunkHasData(bytes, offset, length, "in VP8X container")) {
       sawPayload = true;
     }
     offset += 8 + length + (length % 2);

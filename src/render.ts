@@ -61,8 +61,13 @@ export type SatoriOptions = {
     languageCode: string,
     segment: string,
   ) => Promise<string | SatoriFont[]>;
-  /** Passed through to Satori; its full Tailwind config type is not re-declared. */
-  tailwindConfig?: Record<string, unknown>;
+  /**
+   * Passed through to Satori. Typed as `object` — not `Record<string, unknown>`
+   * and not Satori's `TwConfig` — so an upstream-typed config (an interface
+   * with named properties and no index signature) is accepted without pulling
+   * Satori's React-dependent declaration graph into this surface.
+   */
+  tailwindConfig?: object;
 };
 
 export type StandaloneFontLoader = () =>
@@ -81,6 +86,7 @@ export type SatoriNode =
   | { type: unknown; props?: object | null }
   | string
   | number
+  | bigint
   | boolean
   | null
   | undefined

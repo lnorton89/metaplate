@@ -3,8 +3,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { imageDimensions, verifyImage } from "../src/image.js";
 
-// Fixtures are real encoder output rather than hand-built headers, so a
-// misreading of a format cannot be encoded into both parser and test.
+// The checked-in fixtures (card.jpg, icon.jpg, the .webp files, card.png) are
+// real encoder output rather than hand-built headers, so a misreading of a
+// format cannot be encoded into both parser and test. The helpers below build
+// synthetic bytes only for the specific shell/truncation cases a real encoder
+// would never emit.
 function fixture(name: string) {
   return readFileSync(path.join(import.meta.dirname, "fixtures", name));
 }
@@ -41,6 +44,7 @@ describe("imageDimensions", () => {
     ["card-lossy.webp", 1200, 630, "webp"],
     ["card-lossless.webp", 1200, 630, "webp"],
     ["card-alpha.webp", 1200, 630, "webp"],
+    ["card.png", 1200, 630, "png"],
   ])("reads %s as %ix%i", (name, width, height, format) => {
     expect(imageDimensions(fixture(name as string))).toEqual({ width, height, format });
   });
@@ -48,6 +52,20 @@ describe("imageDimensions", () => {
   it("still reads PNG", () => {
     const png = completePng(1200, 630);
     expect(imageDimensions(png)).toEqual({ width: 1200, height: 630, format: "png" });
+  });
+
+  it("rejects a real PNG truncated after its IHDR header", () => {
+    const real = fixture("card.png");
+    // Signature (8) + IHDR chunk (12 + 13): cut right after the header.
+    const truncated = real.subarray(0, 8 + 12 + 13);
+    expect(() => imageDimensions(truncated)).toThrow(/missing IEND/);
+  });
+
+  it("rejects a real PNG truncated inside its IDAT stream", () => {
+    const real = fixture("card.png");
+    // Cut ten bytes into the IDAT chunk: the declared length no longer fits.
+    const truncated = real.subarray(0, 8 + 12 + 13 + 10);
+    expect(() => imageDimensions(truncated)).toThrow(/truncated|missing IEND/);
   });
 
   it("rejects a PNG truncated to its IHDR header", () => {
@@ -298,11 +316,14 @@ describe("imageDimensions", () => {
       0x05, 0x00, 0x00, 0x00, // chunk length 5
       0x2f, 0xaf, 0x44, 0x9d, 0x00, // 0x2F signature + 1200x630 packed dims
     ];
+    // Frame payload: 16-byte header + 13-byte sub-chunk + 1 padding byte to
+    // align the sub-chunk, all inside the declared ANMF length (16 + 14 = 30).
     const anmf = [
       0x41, 0x4e, 0x4d, 0x46, // "ANMF"
-      0x1d, 0x00, 0x00, 0x00, // chunk length 16 + 13
+      0x1e, 0x00, 0x00, 0x00, // chunk length 30
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-byte frame header
       ...nestedVp8l,
+      0x00, // sub-chunk alignment padding inside the frame
     ];
     const webp = Uint8Array.from([
       0x52, 0x49, 0x46, 0x46, // "RIFF"
@@ -310,9 +331,97 @@ describe("imageDimensions", () => {
       0x57, 0x45, 0x42, 0x50, // "WEBP"
       ...vp8x,
       ...anmf,
-      0x00, // pad the odd-length chunk to the declared RIFF size
     ]);
     expect(imageDimensions(webp)).toEqual({ width: 1200, height: 630, format: "webp" });
+  });
+
+  it("rejects an ANMF frame whose second sub-chunk overruns the frame", () => {
+    // A plausible first VP8L image must not let a malformed tail hide: the
+    // whole frame is walked, so the second sub-chunk's overrun is caught.
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const goodVp8l = [
+      0x56, 0x50, 0x38, 0x4c, // "VP8L"
+      0x05, 0x00, 0x00, 0x00, // chunk length 5
+      0x2f, 0xaf, 0x44, 0x9d, 0x00,
+    ];
+    // Second sub-chunk declares 200 bytes inside a frame that has none left.
+    const overrun = [
+      0x56, 0x50, 0x38, 0x20, // "VP8 "
+      0xc8, 0x00, 0x00, 0x00, // chunk length 200
+    ];
+    const anmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x26, 0x00, 0x00, 0x00, // chunk length 16 + 14 + 8 = 38
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-byte frame header
+      ...goodVp8l,
+      0x00, // alignment padding
+      ...overrun,
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x44, 0x00, 0x00, 0x00, // declared RIFF size: 76 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...anmf,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/truncated/);
+  });
+
+  it("rejects an ANMF frame nested inside another ANMF frame", () => {
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const nestedAnmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x10, 0x00, 0x00, 0x00, // chunk length 16: a frame header only
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    const anmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x28, 0x00, 0x00, 0x00, // chunk length 16 + 24 = 40
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-byte frame header
+      ...nestedAnmf,
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x46, 0x00, 0x00, 0x00, // declared RIFF size: 78 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...anmf,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/cannot nest/);
+  });
+
+  it("rejects a top-level VP8 chunk declared shorter than its key-frame header", () => {
+    // The reviewer's exact shell: a 30-byte file whose VP8 chunk declares 9
+    // payload bytes, so the RIFF padding byte would become the second height
+    // byte if dimensions were read before validating the declared length.
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x16, 0x00, 0x00, 0x00, // declared RIFF size: 30 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      0x56, 0x50, 0x38, 0x20, // "VP8 "
+      0x09, 0x00, 0x00, 0x00, // chunk length 9
+      0x00, 0x00, 0x00, 0x9d, 0x01, 0x2a, 0xb0, 0x04, 0x76, // 9 payload bytes
+      0x00, // RIFF padding byte
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/too short/);
   });
 
   it("rejects a top-level VP8L missing its signature byte", () => {
@@ -362,6 +471,57 @@ describe("imageDimensions", () => {
       0xff, 0xd9, // EOI immediately after the SOS segment
     ]);
     expect(() => imageDimensions(emptyScan)).toThrow(/no entropy-coded data/);
+  });
+
+  it("rejects a JPEG whose scan contains a marker but no entropy-coded data", () => {
+    // A DHT marker between SOS and EOI must not count as compressed data:
+    // there is still no entropy-coded byte in the scan.
+    const withSof = [
+      0xff, 0xd8, // SOI
+      0xff, 0xc0, // SOF0
+      0x00, 0x0b, // length 11 (Nf=1)
+      0x08, 0x02, 0x76, 0x04, 0xb0, 0x01, 0x01, 0x22, 0x00,
+    ];
+    const markerOnly = Uint8Array.from([
+      ...withSof,
+      0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, // SOS
+      0xff, 0xc4, 0x00, 0x02, // DHT segment with no table data
+      0xff, 0xd9, // EOI
+    ]);
+    expect(() => imageDimensions(markerOnly)).toThrow(/no entropy-coded data/);
+  });
+
+  it("accepts a marker segment between entropy-coded data", () => {
+    // JPEG allows marker segments between entropy-coded segments of a scan;
+    // parsing them must resume the scan rather than treat them as data.
+    const withSof = [
+      0xff, 0xd8, // SOI
+      0xff, 0xc0, // SOF0
+      0x00, 0x0b, // length 11 (Nf=1)
+      0x08, 0x02, 0x76, 0x04, 0xb0, 0x01, 0x01, 0x22, 0x00,
+    ];
+    const withMarker = Uint8Array.from([
+      ...withSof,
+      0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, // SOS
+      0x01, 0x02, // entropy-coded bytes
+      0xff, 0xc4, 0x00, 0x02, // DHT segment between entropy data
+      0x03, 0x04, // more entropy-coded bytes
+      0xff, 0xd9, // EOI
+    ]);
+    expect(imageDimensions(withMarker)).toEqual({ width: 1200, height: 630, format: "jpeg" });
+  });
+
+  it("rejects a JPEG whose SOF declares a mismatched component count", () => {
+    // The frame header must declare 8 + 3*Nf bytes; length 11 with Nf=2 is a
+    // header shell that claims more components than it carries.
+    const badSof = Uint8Array.from([
+      0xff, 0xd8, // SOI
+      0xff, 0xc0, // SOF0
+      0x00, 0x0b, // length 11
+      0x08, 0x02, 0x76, 0x04, 0xb0, 0x02, 0x01, 0x22, 0x00, // ...but Nf=2
+      0xff, 0xd9, // EOI
+    ]);
+    expect(() => imageDimensions(badSof)).toThrow(/malformed frame header/);
   });
 });
 

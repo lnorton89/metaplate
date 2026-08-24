@@ -44,6 +44,29 @@ describe("package fonts", () => {
     );
   });
 
+  it("accepts a relative cwd", async () => {
+    // `createRequire` requires an absolute filename, so a relative `cwd` must
+    // be resolved once at the public boundary instead of reaching the runtime
+    // resolver as-is (which throws ERR_INVALID_ARG_VALUE).
+    const { root } = await fixture();
+    const previous = process.cwd();
+    process.chdir(root);
+    try {
+      const [font] = await loadPackageFonts(
+        [{
+          name: "Example",
+          package: "@fontsource/example",
+          file: "files/example.woff",
+          weight: 700,
+        }],
+        { cwd: "." },
+      );
+      expect(font!.name).toBe("Example");
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
   it("memoizes a declared font set", async () => {
     const { root } = await fixture();
     const loader = packageFontLoader(

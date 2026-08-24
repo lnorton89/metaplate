@@ -59,6 +59,11 @@ For SVG-only rendering with `metaplate/render`, Resvg is unnecessary:
 npm install metaplate satori react
 ```
 
+React is needed only for JSX authoring. A plate can also be written as a
+plain `{ type, props }` object tree — see
+[Authoring without a JSX toolchain](#authoring-without-a-jsx-toolchain) —
+which needs no React at all, its types or the package.
+
 ### Optional peers
 
 Every peer — `satori`, `@resvg/resvg-js`, and `next` — loads on the first
@@ -589,9 +594,11 @@ A JPEG plate uses `Content-Type = "image/jpeg"` for the same two paths.
 ## Verify generated files
 
 `metaplate verify` reads dimensions from the container header — PNG, JPEG, or
-WebP — and checks the file is structurally complete: the chunk stream walks
-through image data to its terminator, so a truncated or partially written
-file fails even when its dimension header survives:
+WebP — and runs a structural/truncation check: the chunk stream is walked
+through image data to its terminator, and obvious header shells are rejected,
+so a truncated or partially written file fails even when its dimension header
+survives. It is not a full decode — a file whose headers are intact but whose
+payload cannot decode is outside its scope:
 
 ```sh
 npx metaplate verify --size 1200x630 public/og.png

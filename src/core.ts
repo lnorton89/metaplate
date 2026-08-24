@@ -58,9 +58,10 @@ export function assertImageSize(size: ImageSize): void {
 
 /**
  * Rejects anything that would change the effective path after normalization.
- * Backslashes are path separators in HTTP(S) URLs, and percent-encoded dot
- * segments decode to `.`/`..`, so those are rejected alongside the literal
- * forms rather than emitted for `new URL()` to resolve elsewhere.
+ * Backslashes are path separators in HTTP(S) URLs, percent-encoded dot
+ * segments decode to `.`/`..`, and WHATWG URL parsing strips ASCII tab and
+ * newline characters, so those are rejected alongside the literal forms
+ * rather than emitted for `new URL()` to resolve elsewhere.
  */
 function assertPathname(value: string, label: string): void {
   if (value.includes("?") || value.includes("#")) {
@@ -68,6 +69,11 @@ function assertPathname(value: string, label: string): void {
   }
   if (value.includes("\\")) {
     throw new Error(`${label} must not contain backslashes: ${value}`);
+  }
+  // WHATWG URL parsing strips ASCII tab and newline (0x09, 0x0A, 0x0D) before
+  // normalization, so `.\n.` becomes `..` once `new URL()` runs.
+  if (/[\t\n\r]/.test(value)) {
+    throw new Error(`${label} must not contain tab or newline characters: ${value}`);
   }
   // Percent-encoded dot segments decode to traversal once `new URL()` runs.
   // Each segment is decoded independently so a malformed escape in one cannot
@@ -116,6 +122,9 @@ function absoluteImageUrl(origin: string, path: string): string {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`Invalid origin: expected an http(s) URL; received ${origin}`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`Invalid origin: must not contain credentials; received ${origin}`);
   }
   if (url.pathname !== "/" || url.search || url.hash) {
     throw new Error(

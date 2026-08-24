@@ -91,6 +91,20 @@ describe("socialImagePath", () => {
     },
   );
 
+  it.each([
+    "/docs/.\n./admin",
+    "/docs/.\t./admin",
+    "/docs/.\r./admin",
+    "/docs/..\n/admin",
+  ])("rejects URL-stripped tab and newline characters in %s", (route) => {
+    // WHATWG URL parsing strips ASCII tab and newline before normalizing, so
+    // `.\n.` becomes `..` once `new URL()` runs — the same traversal class
+    // #57 exists to prevent.
+    expect(() => socialImagePath(route, "og.png", "", "https://example.com")).toThrow(
+      /tab or newline/,
+    );
+  });
+
   it("rejects query and fragment in basePath and imagePath", () => {
     expect(() => socialImagePath("/docs", "og.png", "/proj?x=1")).toThrow(/basePath/);
     expect(() => socialImagePath("/docs", "og?x=1", "/proj")).toThrow(/imagePath/);
@@ -159,6 +173,15 @@ describe("origin", () => {
       expect(() => socialImage("/", "Home", { origin })).toThrow(/origin/i);
     },
   );
+
+  it.each([
+    "https://user:pass@example.com",
+    "https://user@example.com",
+    "https://:pass@example.com",
+  ])("rejects an origin carrying credentials %s", (origin) => {
+    // Metadata URLs must not leak userinfo into crawler-facing tags.
+    expect(() => socialImage("/", "Home", { origin })).toThrow(/credentials/);
+  });
 });
 
 it("reuses one descriptor for Open Graph and Twitter metadata", () => {

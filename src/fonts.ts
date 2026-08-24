@@ -94,14 +94,18 @@ export function findPackageDirectory(
   cwd = process.cwd(),
   resolvePackage?: (packageName: string) => string | undefined,
 ): string {
+  // `createRequire` requires an absolute filename, so resolve a possibly
+  // relative `cwd` once at the public boundary and reuse the absolute value
+  // for both the runtime resolver and the upward walk below.
+  const absoluteCwd = path.resolve(cwd);
   const custom = resolvePackage?.(packageName);
   if (custom) return custom;
 
-  const resolved = resolveByRequire(packageName, cwd);
+  const resolved = resolveByRequire(packageName, absoluteCwd);
   if (resolved) return resolved;
 
   const searched: string[] = [];
-  let directory = path.resolve(cwd);
+  let directory = absoluteCwd;
 
   for (;;) {
     const candidate = path.join(directory, "node_modules", packageName);
