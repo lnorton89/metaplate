@@ -62,6 +62,19 @@ directly if a plate needs it:
 import { ImageResponse } from "next/og";
 ```
 
+Upgrading in place does not reclaim the disk. An already-installed `satori` or
+`@resvg/resvg-js` satisfies the now-optional peer, so npm considers the tree
+valid and leaves both packages where they are; `npm prune` makes it worse,
+proposing Resvg's entire platform matrix rather than removing anything.
+Reinstall from scratch to shed them:
+
+```sh
+rm -rf node_modules package-lock.json && npm install
+```
+
+Measured on a metadata-only consumer: 19 MB retained after an in-place upgrade
+from 0.1.2, against 164 KB after a clean reinstall.
+
 ## Framework-neutral renderer
 
 Define the design once with `createNodeOg`. The component is Satori-compatible
