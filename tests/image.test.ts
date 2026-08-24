@@ -161,6 +161,17 @@ describe("imageDimensions", () => {
     });
   });
 
+  it("rejects a PNG whose IDAT stream is not a zlib datastream", () => {
+    // A single IDAT byte cannot be a zlib stream: no header, no trailer.
+    const base = completePng(1200, 630);
+    const oneByteIdat = Uint8Array.from([
+      ...base.subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", [0x78]),
+      ...pngChunk("IEND", []),
+    ]);
+    expect(() => imageDimensions(oneByteIdat)).toThrow(/zlib datastream/);
+  });
+
   it("rejects a VP8X container whose only payload chunk is empty", () => {
     // A zero-length VP8 header inside a VP8X container must not count as image
     // data, or the empty-chunk attitude would reopen the VP8X-only hole.
@@ -186,6 +197,138 @@ describe("imageDimensions", () => {
     expect(() => imageDimensions(webp)).toThrow(/no image or animation data/);
   });
 
+  it("rejects a VP8X container with a stub VP8 frame", () => {
+    // A ten-byte VP8 chunk of zeros claims the minimum frame header length but
+    // carries no key-frame start code, so it must not count as image data.
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const stubVp8 = [
+      0x56, 0x50, 0x38, 0x20, // "VP8 "
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // payload: ten zero bytes, no start code
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x28, 0x00, 0x00, 0x00, // declared RIFF size: 48 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...stubVp8,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/malformed VP8 frame/);
+  });
+
+  it("rejects a VP8X container with a junk VP8L payload", () => {
+    // A five-byte VP8L chunk meets the old minimum-length gate, but its first
+    // byte is not the 0x2F lossless signature, so it is not a VP8L bitstream.
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const junkVp8l = [
+      0x56, 0x50, 0x38, 0x4c, // "VP8L"
+      0x05, 0x00, 0x00, 0x00, // chunk length 5
+      0x00, 0xaf, 0x44, 0x9d, 0x00, // payload: wrong signature byte, then packed dims
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x24, 0x00, 0x00, 0x00, // declared RIFF size: 44 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...junkVp8l,
+      0x00, // pad the odd-length chunk to the declared RIFF size
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/malformed VP8L frame/);
+  });
+
+  it("rejects a VP8X container with a header-only ANMF frame", () => {
+    // A 16-byte ANMF is only the frame header; without a nested VP8/VP8L
+    // bitstream it carries no image data.
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const headerOnlyAnmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x10, 0x00, 0x00, 0x00, // chunk length 16
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-byte frame header only
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x2e, 0x00, 0x00, 0x00, // declared RIFF size: 54 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...headerOnlyAnmf,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/no image or animation data/);
+  });
+
+  it("accepts a VP8X container whose ANMF frame nests a VP8L bitstream", () => {
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const nestedVp8l = [
+      0x56, 0x50, 0x38, 0x4c, // "VP8L"
+      0x05, 0x00, 0x00, 0x00, // chunk length 5
+      0x2f, 0xaf, 0x44, 0x9d, 0x00, // 0x2F signature + 1200x630 packed dims
+    ];
+    const anmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x1d, 0x00, 0x00, 0x00, // chunk length 16 + 13
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 16-byte frame header
+      ...nestedVp8l,
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x3c, 0x00, 0x00, 0x00, // declared RIFF size: 68 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...anmf,
+      0x00, // pad the odd-length chunk to the declared RIFF size
+    ]);
+    expect(imageDimensions(webp)).toEqual({ width: 1200, height: 630, format: "webp" });
+  });
+
+  it("rejects a top-level VP8L missing its signature byte", () => {
+    // A lossless WebP whose first payload byte is not 0x2F is not a VP8L
+    // bitstream even though it is long enough to carry dimensions.
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x16, 0x00, 0x00, 0x00, // declared RIFF size: 30 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      0x56, 0x50, 0x38, 0x4c, // "VP8L"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0xaf, 0x44, 0x9d, 0x00, 0, 0, 0, 0, 0, // payload: wrong signature, then dims
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/missing VP8L signature/);
+  });
+
   it("rejects a JPEG whose SOS segment is bare", () => {
     // A frame header followed by a complaint `FF DA 00 00` SOS (no declared
     // length or component count) and then EOI has no scan to decode, so it
@@ -202,6 +345,23 @@ describe("imageDimensions", () => {
       0xff, 0xd9, // EOI
     ]);
     expect(() => imageDimensions(bareSos)).toThrow(/SOS segment/);
+  });
+
+  it("rejects a JPEG whose scan contains no entropy-coded data", () => {
+    // A well-formed SOS followed immediately by EOI has a valid header but an
+    // empty scan: there is nothing to decode, so it must not verify.
+    const withSof = [
+      0xff, 0xd8, // SOI
+      0xff, 0xc0, // SOF0
+      0x00, 0x0b, // length 11 (Nf=1)
+      0x08, 0x02, 0x76, 0x04, 0xb0, 0x01, 0x01, 0x22, 0x00, // precision/height/width/Nf/component
+    ];
+    const emptyScan = Uint8Array.from([
+      ...withSof,
+      0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, // SOS: length 8, 1 component
+      0xff, 0xd9, // EOI immediately after the SOS segment
+    ]);
+    expect(() => imageDimensions(emptyScan)).toThrow(/no entropy-coded data/);
   });
 });
 

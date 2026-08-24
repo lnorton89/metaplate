@@ -51,12 +51,16 @@ conventional `node_modules` layout, such as Yarn Plug'n'Play ([#58]).
   fields against the packed package with `skipLibCheck` off, so a hidden
   React dependency or a broken mirror is an error ([#59]).
 - Truncated or header-shell images no longer pass `metaplate verify` even
-when their dimension header survives: PNG walks to a non-empty concatenated
-IDAT stream then zero-payload IEND (empty IDAT siblings stay legal); JPEG
-walks to a validated SOS segment header then a terminal EOI; WebP requires
-the declared RIFF size to match the bytes, every chunk to stay inside it,
-and an extended VP8X container to carry a `VP8 `/`VP8L`/`ANMF` chunk with a
-minimum header ([#50]).
+when their dimension header survives, and the check is identical through
+`metaplate/png` and `metaplate/image`: PNG walks to a non-empty concatenated
+IDAT stream whose bytes form a zlib envelope — a deflate CMF/FLG header with
+room for the Adler-32 trailer — then a zero-payload IEND (empty IDAT
+siblings stay legal); JPEG walks to a validated SOS segment header and then
+requires entropy-coded data before the terminal EOI; WebP requires the
+declared RIFF size to match the bytes, every chunk to stay inside it, and an
+extended VP8X container to carry a `VP8 `/`VP8L`/`ANMF` chunk whose payload
+is structurally real — the VP8 key-frame start code, the VP8L `0x2F`
+signature, or a nested image bitstream inside an ANMF frame ([#50]).
 - `socialImagePath` rejects query strings, fragments, backslashes, and literal
 or percent-encoded `.`/`..` segments — `%2e%2e`, `.%2e`, `%2e.`, decoded
 independently per segment so a single malformed escape cannot disable

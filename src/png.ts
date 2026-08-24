@@ -21,11 +21,33 @@ function chunkType(bytes: Uint8Array, offset: number): string {
 }
 
 /**
+ * Validates the zlib envelope of the concatenated IDAT stream without
+ * inflating it: the first two bytes must be a CMF/FLG header declaring the
+ * deflate method with a correct FCHECK, and the stream must be long enough
+ * to hold the four-byte Adler-32 trailer. This rejects a stub or truncated
+ * IDAT stream while staying dependency-free.
+ */
+function validateZlibEnvelope(idatBytes: number, firstTwo: [number, number]): void {
+  if (idatBytes < 8) {
+    throw new Error("Not a PNG: IDAT stream is not a zlib datastream");
+  }
+  const cmf = firstTwo[0];
+  const flg = firstTwo[1];
+  if ((cmf & 0x0f) !== 8) {
+    throw new Error("Not a PNG: IDAT stream is not deflate-compressed");
+  }
+  if (((cmf << 8) + flg) % 31 !== 0) {
+    throw new Error("Not a PNG: IDAT stream has an invalid zlib header");
+  }
+}
+
+/**
  * Reads and validates the PNG signature and IHDR dimensions, then walks the
  * chunk stream to confirm the file is structurally complete: IHDR comes
- * first with exactly 13 bytes of payload, at least one IDAT follows, and the
- * file ends with its IEND terminator. A truncated file fails even when its
- * dimension header survives.
+ * first with exactly 13 bytes of payload, at least one IDAT follows, the
+ * concatenated IDAT stream forms a zlib datastream, and the file ends with
+ * its zero-payload IEND terminator. A truncated or header-shell file fails
+ * even when its dimension header survives.
  */
 export function pngDimensions(input: ArrayBuffer | Uint8Array): PngDimensions {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
@@ -46,15 +68,30 @@ export function pngDimensions(input: ArrayBuffer | Uint8Array): PngDimensions {
 
   const dimensions = { width: uint32(bytes, 16), height: uint32(bytes, 20) };
   let offset = 8 + 12 + 13;
-  let sawIdat = false;
+  let idatBytes = 0;
+  // The first two bytes of the concatenated IDAT stream, captured across
+  // chunk boundaries so the zlib header can be checked without copying.
+  const streamHead: [number, number] = [0, 0];
+  let headFilled = 0;
 
   while (offset + 12 <= bytes.byteLength) {
     const length = chunkLength(bytes, offset);
     const type = chunkType(bytes, offset + 4);
 
-    if (type === "IDAT") sawIdat = true;
+    if (type === "IDAT") {
+      idatBytes += length;
+      for (let index = 0; index < length && headFilled < 2; index += 1) {
+        streamHead[headFilled] = bytes[offset + 8 + index]!;
+        headFilled += 1;
+      }
+    }
     if (type === "IEND") {
-      if (!sawIdat) throw new Error("Not a PNG: missing an IDAT image chunk");
+      // Empty IDAT siblings are legal, but an image whose concatenated IDAT
+      // stream is empty has no zlib data at all, so it must not verify.
+      if (idatBytes === 0) {
+        throw new Error("Not a PNG: IDAT stream contains no image data");
+      }
+      validateZlibEnvelope(idatBytes, streamHead);
       if (length !== 0) throw new Error("Not a PNG: IEND must have no payload");
       if (offset + 12 !== bytes.byteLength) {
         throw new Error("Not a PNG: trailing data after IEND");

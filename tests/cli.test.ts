@@ -116,7 +116,9 @@ describe("verify CLI", () => {
         0,
         0,
       ]),
-      chunk("IDAT", [0x78, 0x9c]),
+      // A complete (empty) zlib datastream: 0x78 0x9C header, an empty
+      // deflate block, and the Adler-32 of the empty input.
+      chunk("IDAT", [0x78, 0x9c, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01]),
       chunk("IEND", []),
     ]);
   }

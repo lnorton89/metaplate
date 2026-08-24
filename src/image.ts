@@ -1,3 +1,5 @@
+import { pngDimensions } from "./png.js";
+
 /** One of the formats the verifier can recognize by signature. */
 export type OutputFormat = "svg" | "png" | "jpeg" | "webp";
 
@@ -19,15 +21,6 @@ export function imageContentType(format: ImageFormat): string {
     case "webp":
       return "image/webp";
   }
-}
-
-function uint32(bytes: Uint8Array, offset: number): number {
-  return (
-    bytes[offset]! * 0x1000000 +
-    bytes[offset + 1]! * 0x10000 +
-    bytes[offset + 2]! * 0x100 +
-    bytes[offset + 3]!
-  );
 }
 
 function uint16(bytes: Uint8Array, offset: number): number {
@@ -62,55 +55,14 @@ function matches(bytes: Uint8Array, signature: readonly number[]): boolean {
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
 
 /**
- * PNG dimensions plus structural completeness. The chunk stream is walked
- * from IHDR (exactly 13 payload bytes) through at least one IDAT to a
- * zero-payload IEND that ends the file, so a truncated file fails even when
- * its dimension header survives.
+ * PNG dimensions plus structural completeness. Delegates to the shared
+ * `metaplate/png` walker so the two public verifiers can never drift apart:
+ * IHDR with exactly 13 payload bytes, a non-empty IDAT stream that forms a
+ * zlib datastream, then a zero-payload IEND that ends the file.
  */
 function pngSize(bytes: Uint8Array): ImageDimensions {
-  if (bytes.byteLength < 24) throw new Error("Not a PNG: file is shorter than IHDR");
-  if (ascii(bytes, 12, 4) !== "IHDR") throw new Error("Not a PNG: first chunk is not IHDR");
-  if (uint32(bytes, 8) !== 13) {
-    throw new Error("Not a PNG: IHDR must have exactly 13 bytes of payload");
-  }
-
-  const dimensions = {
-    width: uint32(bytes, 16),
-    height: uint32(bytes, 20),
-    format: "png" as const,
-  };
-  let offset = 8 + 12 + 13;
-  let idatBytes = 0;
-
-  while (offset + 12 <= bytes.byteLength) {
-    const length = uint32(bytes, offset);
-    const type = ascii(bytes, offset + 4, 4);
-
-    if (type === "IDAT") idatBytes += length;
-    if (type === "IEND") {
-      // Empty IDAT siblings are legal, but an image whose concatenated IDAT
-      // stream is empty has no zlib data at all, so it must not verify.
-      if (idatBytes === 0) {
-        throw new Error("Not a PNG: IDAT stream contains no image data");
-      }
-      if (length !== 0) throw new Error("Not a PNG: IEND must have no payload");
-      if (offset + 12 !== bytes.byteLength) {
-        throw new Error("Not a PNG: trailing data after IEND");
-      }
-      return dimensions;
-    }
-
-    // Zero-length chunks are legal in PNG (the empty IDAT between siblings and
-    // the zero-length IEND are both valid); the walk advances by 12 regardless,
-    // so an empty chunk cannot loop forever.
-    if (offset + 12 + length > bytes.byteLength) {
-      throw new Error(`Not a PNG: ${type} chunk is truncated`);
-    }
-
-    offset += 12 + length;
-  }
-
-  throw new Error("Not a PNG: missing IEND terminator");
+  const { width, height } = pngDimensions(bytes);
+  return { width, height, format: "png" };
 }
 
 /**
@@ -176,28 +128,113 @@ function jpegSize(bytes: Uint8Array): ImageDimensions {
 
   // The scan's entropy-coded data is unstructured, so skip it byte-wise to
   // the EOI marker, honouring the 0xFF 0x00 stuffing that keeps 0xFF out of
-  // the data proper.
+  // the data proper. A validated SOS followed immediately by EOI carries no
+  // entropy-coded data, so it must not verify.
   if (sawScan) {
     if (!sawFrame) throw new Error("Not a JPEG: no frame header found");
     let scan = scanStart;
+    let sawEntropy = false;
     while (scan + 1 < bytes.byteLength) {
+      // A stuffed 0xFF 0x00 is entropy-coded data.
       if (bytes[scan] === 0xff && bytes[scan + 1] === 0x00) {
+        scan += 2;
+        sawEntropy = true;
+        continue;
+      }
+      // Restart markers RST0-RST7 sit between entropy-coded segments.
+      if (bytes[scan] === 0xff && bytes[scan + 1]! >= 0xd0 && bytes[scan + 1]! <= 0xd7) {
         scan += 2;
         continue;
       }
+      // 0xFF 0xFF padding before a marker carries no data.
+      if (bytes[scan] === 0xff && bytes[scan + 1] === 0xff) {
+        scan += 1;
+        continue;
+      }
       if (bytes[scan] === 0xff && bytes[scan + 1] === 0xd9) {
+        if (!sawEntropy) {
+          throw new Error("Not a JPEG: image scan contains no entropy-coded data");
+        }
         if (scan + 2 !== bytes.byteLength) {
           throw new Error("Not a JPEG: trailing data after EOI");
         }
         return { width, height, format: "jpeg" };
       }
       scan += 1;
+      sawEntropy = true;
     }
     throw new Error("Not a JPEG: missing EOI marker after image data");
   }
 
   if (!sawFrame) throw new Error("Not a JPEG: no frame header found");
   throw new Error("Not a JPEG: missing image scan (SOS segment)");
+}
+
+/** True when a VP8 (lossy) payload opens with its three-byte key-frame start
+ * code, which sits after the three-byte frame tag. */
+function vp8HasKeyFrame(bytes: Uint8Array, payloadOffset: number): boolean {
+  return (
+    bytes[payloadOffset + 3] === 0x9d &&
+    bytes[payloadOffset + 4] === 0x01 &&
+    bytes[payloadOffset + 5] === 0x2a
+  );
+}
+
+/** True when a VP8L (lossless) payload opens with its 0x2F signature byte. */
+function vp8lHasSignature(bytes: Uint8Array, payloadOffset: number): boolean {
+  return bytes[payloadOffset] === 0x2f;
+}
+
+/**
+ * Walks the sub-chunks of an ANMF frame (after its 16-byte frame header) and
+ * reports whether any carries a structurally valid VP8 or VP8L bitstream.
+ * A frame header alone is not image data.
+ */
+function anmfHasImageData(
+  bytes: Uint8Array,
+  frameOffset: number,
+  frameLength: number,
+): boolean {
+  const end = frameOffset + frameLength;
+  let offset = frameOffset + 16;
+  while (offset + 8 <= end) {
+    const length = uint32LE(bytes, offset + 4);
+    if (offset + 8 + length > end) {
+      throw new Error("Not a WebP: ANMF frame chunk is truncated");
+    }
+    if (imageChunkHasData(bytes, offset, length)) return true;
+    offset += 8 + length + (length % 2);
+  }
+  return false;
+}
+
+/**
+ * Classifies a chunk inside a VP8X container or ANMF frame: true when it
+ * carries structurally valid image data, false for ancillary or empty/stub
+ * chunks, and a throw when a chunk that claims to be image data is malformed.
+ */
+function imageChunkHasData(bytes: Uint8Array, chunkOffset: number, length: number): boolean {
+  const child = ascii(bytes, chunkOffset, 4);
+  const payloadOffset = chunkOffset + 8;
+  if (child === "VP8 ") {
+    if (length < 10) return false;
+    if (!vp8HasKeyFrame(bytes, payloadOffset)) {
+      throw new Error("Not a WebP: malformed VP8 frame in VP8X container");
+    }
+    return true;
+  }
+  if (child === "VP8L") {
+    if (length < 5) return false;
+    if (!vp8lHasSignature(bytes, payloadOffset)) {
+      throw new Error("Not a WebP: malformed VP8L frame in VP8X container");
+    }
+    return true;
+  }
+  if (child === "ANMF") {
+    if (length < 16) return false;
+    return anmfHasImageData(bytes, payloadOffset, length);
+  }
+  return false;
 }
 
 /**
@@ -225,7 +262,7 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
   if (chunk === "VP8 ") {
     // Key frame: a 3-byte frame tag, the 0x9D012A start code, then 16-bit
     // little-endian width and height whose top two bits are a scale factor.
-    if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) {
+    if (!vp8HasKeyFrame(bytes, 20)) {
       throw new Error("Not a WebP: missing VP8 key frame start code");
     }
     dimensions = {
@@ -234,7 +271,12 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
       format: "webp",
     };
   } else if (chunk === "VP8L") {
-    const packed = bytes[21]! + bytes[22]! * 0x100 + bytes[23]! * 0x10000 + bytes[24]! * 0x1000000;
+    // The lossless bitstream opens with its 0x2F signature byte; the canvas
+    // dimensions follow in the next four bytes.
+    if (!vp8lHasSignature(bytes, 20)) {
+      throw new Error("Not a WebP: missing VP8L signature byte");
+    }
+    const packed = uint32LE(bytes, 21);
     dimensions = {
       width: (packed & 0x3fff) + 1,
       height: ((packed >>> 14) & 0x3fff) + 1,
@@ -256,28 +298,16 @@ function webpSize(bytes: Uint8Array): ImageDimensions {
   const needsPayload = chunk === "VP8X";
   let sawPayload = false;
 
-  // The minimum payload each image-bearing chunk type needs for a meaningful
-  // header: VP8 lossy keeps a 10-byte frame header, VP8L a 5-byte lossless
-  // header, and ANMF a 16-byte frame header before its sub-chunks. An empty or
-  // stub chunk must not count as image data.
-  const payloadMinimum: Record<string, number> = {
-    "VP8 ": 10,
-    VP8L: 5,
-    ANMF: 16,
-  };
-
   // Walk the container so a chunk truncated against the declared RIFF size
   // (for example a missing ALPH or ANIM payload) is caught.
   let offset = 12;
   while (offset + 8 <= expectedEnd) {
-    const child = ascii(bytes, offset, 4);
     const length = uint32LE(bytes, offset + 4);
-    const minimum = payloadMinimum[child];
-    if (needsPayload && minimum !== undefined && length >= minimum) {
-      sawPayload = true;
-    }
     if (offset + 8 + length > expectedEnd) {
       throw new Error("Not a WebP: chunk is truncated");
+    }
+    if (needsPayload && imageChunkHasData(bytes, offset, length)) {
+      sawPayload = true;
     }
     offset += 8 + length + (length % 2);
   }

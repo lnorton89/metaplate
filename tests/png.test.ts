@@ -18,7 +18,9 @@ function pngHeader(width: number, height: number) {
   return Uint8Array.from([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
     ...pngChunk("IHDR", ihdr),
-    ...pngChunk("IDAT", [0x78, 0x9c, 0x01, 0x00, 0x00, 0xff, 0xff]),
+    // A complete (empty) zlib datastream: 0x78 0x9C header, an empty deflate
+    // block, and the Adler-32 of the empty input.
+    ...pngChunk("IDAT", [0x78, 0x9c, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01]),
     ...pngChunk("IEND", []),
   ]);
 }
@@ -52,5 +54,48 @@ describe("PNG verification", () => {
       ...pngHeader(1200, 630).subarray(8 + 12 + 13),
     ]);
     expect(pngDimensions(withEmptyIdat)).toEqual({ width: 1200, height: 630 });
+  });
+
+  it("rejects a PNG whose entire IDAT stream is empty", () => {
+    // A zero-length IDAT is legal between real siblings, but an image whose
+    // only IDATs are empty carries no zlib stream and must not verify.
+    const emptyStream = Uint8Array.from([
+      ...pngHeader(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", []),
+      ...pngChunk("IDAT", []),
+      ...pngChunk("IEND", []),
+    ]);
+    expect(() => pngDimensions(emptyStream)).toThrow(/no image data/);
+  });
+
+  it("rejects an IDAT stream that is not a zlib datastream", () => {
+    // A single byte cannot be a zlib stream: no header, no Adler-32 trailer.
+    const oneByteIdat = Uint8Array.from([
+      ...pngHeader(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", [0x78]),
+      ...pngChunk("IEND", []),
+    ]);
+    expect(() => pngDimensions(oneByteIdat)).toThrow(/zlib datastream/);
+  });
+
+  it("rejects an IDAT stream truncated before its Adler-32 trailer", () => {
+    // The header declares a valid FCHECK but the stream is cut before its
+    // Adler-32 trailer, so it cannot be a complete datastream.
+    const truncatedStream = Uint8Array.from([
+      ...pngHeader(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", [0x78, 0x9c, 0x03, 0x00, 0x00]),
+      ...pngChunk("IEND", []),
+    ]);
+    expect(() => pngDimensions(truncatedStream)).toThrow(/zlib datastream/);
+  });
+
+  it("rejects an IDAT stream whose header declares the wrong method", () => {
+    // CMF 0x01 declares compression method 1, not deflate (8).
+    const wrongMethod = Uint8Array.from([
+      ...pngHeader(1200, 630).subarray(0, 8 + 12 + 13),
+      ...pngChunk("IDAT", [0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01]),
+      ...pngChunk("IEND", []),
+    ]);
+    expect(() => pngDimensions(wrongMethod)).toThrow(/deflate-compressed/);
   });
 });
