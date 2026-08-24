@@ -1,4 +1,3 @@
-import type { ResvgRenderOptions } from "@resvg/resvg-js";
 import {
   OG_CONTENT_TYPE,
   socialImage,
@@ -31,6 +30,44 @@ export type RenderedPixels = {
   pixels: Uint8Array;
   width: number;
   height: number;
+};
+
+/**
+ * Resvg rendering controls mirrored structurally so importing
+ * `metaplate/node` does not pull Resvg's Node-dependent declarations into a
+ * consumer that has not installed the optional renderer peer yet.
+ */
+export type ResvgRenderOptions = {
+  font?: {
+    loadSystemFonts?: boolean;
+    fontFiles?: string[];
+    fontDirs?: string[];
+    defaultFontSize?: number;
+    defaultFontFamily?: string;
+    serifFamily?: string;
+    sansSerifFamily?: string;
+    cursiveFamily?: string;
+    fantasyFamily?: string;
+    monospaceFamily?: string;
+  };
+  dpi?: number;
+  languages?: string[];
+  shapeRendering?: 0 | 1 | 2;
+  textRendering?: 0 | 1 | 2;
+  imageRendering?: 0 | 1;
+  fitTo?:
+    | { mode: "original" }
+    | { mode: "width"; value: number }
+    | { mode: "height"; value: number }
+    | { mode: "zoom"; value: number };
+  background?: string;
+  crop?: {
+    left: number;
+    top: number;
+    right?: number;
+    bottom?: number;
+  };
+  logLevel?: "off" | "error" | "warn" | "info" | "debug" | "trace";
 };
 
 /**
@@ -128,7 +165,7 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
    * encodes far smaller as JPEG or WebP, and returning the pixmap keeps an
    * image encoder out of this package.
    */
-  async function renderPixels(copy: Copy) {
+  async function renderPixels(copy: Copy): Promise<RenderedPixels> {
     const image = await rasterize(copy);
     return { pixels: image.pixels, width: image.width, height: image.height };
   }
@@ -171,5 +208,3 @@ export function createNodeOg<Copy>(definition: NodeOgDefinition<Copy>) {
       }),
   });
 }
-
-export type { ResvgRenderOptions } from "@resvg/resvg-js";

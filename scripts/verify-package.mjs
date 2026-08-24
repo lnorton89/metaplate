@@ -399,12 +399,12 @@ try {
   // Issue #59, round two: the React-free surface must not trade the React
   // type leak for a Node one. `SatoriFont.data` is declared as
   // `ArrayBuffer | Uint8Array` (never Node's bare `Buffer` global), so a
-  // consumer with no @types/node and no React types installed can load
-  // `metaplate/render` and author a plain-object plate with an
-  // ArrayBuffer-backed font. Compile that second consumer here — only
-  // TypeScript and the renderer peer installed, `skipLibCheck` off, so a
-  // hidden Node or React dependency in any declaration is a hard error
-  // rather than a suppressed one.
+  // consumer with no @types/node and no React types installed can load both
+  // `metaplate/render` and `metaplate/node`, author a plain-object plate, and
+  // use the public pixel/Resvg option shapes without installing Resvg yet.
+  // Compile that second consumer here — only TypeScript and the renderer peer
+  // installed, `skipLibCheck` off, so a hidden Node or React dependency in any
+  // declaration is a hard error rather than a suppressed one.
   install(bare, [archive, peerSpecifier("satori"), peerSpecifier("typescript")]);
 
   // Make the smoke airtight: `types: []` stops TypeScript from auto-including
@@ -438,6 +438,11 @@ try {
       type SatoriFont,
       type SatoriLayoutNode,
     } from "metaplate/render";
+    import {
+      createNodeOg,
+      type RenderedPixels,
+      type ResvgRenderOptions,
+    } from "metaplate/node";
 
     // An ArrayBuffer-backed font must type-check where Node's Buffer global
     // is unavailable; a Uint8Array would also satisfy the union.
@@ -466,6 +471,21 @@ try {
       },
     });
 
+    const resvg: ResvgRenderOptions = {
+      background: "transparent",
+      fitTo: { mode: "width", value: 1200 },
+    };
+    const nodePlate = createNodeOg({
+      component: () => ({ type: "div", props: { children: "card" } }),
+      alt: () => "card",
+      fonts: () => [font],
+      resvg,
+    });
+    type PixelResult = Awaited<ReturnType<typeof nodePlate.renderPixels>>;
+    const acceptsPixels = (pixels: RenderedPixels): PixelResult => pixels;
+    void acceptsPixels;
+
+    export { nodePlate };
     export default plate;
   `,
   );

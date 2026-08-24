@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { ResvgRenderOptions as UpstreamResvgRenderOptions } from "@resvg/resvg-js";
 import type { SatoriOptions as UpstreamSatoriOptions } from "satori";
+import type { ResvgRenderOptions } from "../src/node.js";
 import type { SatoriNode, SatoriOptions } from "../src/render.js";
 
 // Satori's TwConfig is an interface with named properties and no string index
@@ -16,6 +18,12 @@ void withUpstreamConfig;
 // them, so the local element tree must too.
 const bigintNode: SatoriNode = 42n;
 void bigintNode;
+
+// The local Resvg options mirror keeps metaplate/node free of Resvg's
+// `/// <reference types="node" />` declaration while accepting every option
+// object typed by the upstream renderer.
+const resvgOptions: ResvgRenderOptions = {} as UpstreamResvgRenderOptions;
+void resvgOptions;
 
 describe("React-free type mirror", () => {
   it("is exercised by the type-level assertions above", () => {
