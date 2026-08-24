@@ -106,3 +106,39 @@ it("requires at least one font", async () => {
     /at least one font/,
   );
 });
+
+it(
+  "renders raw RGBA pixels for another encoder",
+  async () => {
+    const plate = createNodeOg(definition);
+    const { pixels, width, height } = await plate.renderPixels({ title: "Pixels" });
+
+    expect(width).toBe(plate.size.width);
+    expect(height).toBe(plate.size.height);
+    expect(pixels.length).toBe(width * height * 4);
+  },
+  20_000,
+);
+
+// Dust Compass renders 1,513 cards through a six-way pool. Satori is a pure
+// call and each render builds its own Resvg instance, so concurrent renders
+// must agree with sequential ones rather than share mutable state.
+it(
+  "renders concurrently without sharing state",
+  async () => {
+    const plate = createNodeOg(definition);
+    const copies = ["one", "two", "three", "four", "five", "six"].map((title) => ({
+      title,
+    }));
+
+    const concurrent = await Promise.all(copies.map((copy) => plate.render(copy)));
+    const sequential = [];
+    for (const copy of copies) sequential.push(await plate.render(copy));
+
+    for (const [index, bytes] of concurrent.entries()) {
+      expect(Buffer.from(bytes).equals(Buffer.from(sequential[index]!))).toBe(true);
+    }
+    expect(Buffer.from(concurrent[0]!).equals(Buffer.from(concurrent[1]!))).toBe(false);
+  },
+  60_000,
+);

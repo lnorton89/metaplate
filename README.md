@@ -124,6 +124,40 @@ const svg: string = await og.renderSvg(copy);
 const response: Response = await og.response(copy);
 ```
 
+Rendering is safe to call concurrently. Satori is a pure call, each render
+builds its own Resvg instance, and `packageFontLoader` memoizes one shared copy
+of the font bytes, so a pool over `render` is the expected way to build many
+cards at once.
+
+### Other output formats
+
+PNG suits a flat vector plate and is what `render` returns. A card that
+composites a photograph is a different problem: the same 1200x630 card measures
+roughly 60 KB flat, 253 KB with a photo in it, and about 35 KB as JPEG at
+quality 80. Across a per-item card set that difference decides whether the set
+is publishable at all.
+
+`renderPixels` returns the raw pixmap so any encoder can take it, which keeps
+an image encoder out of this package:
+
+```ts
+import sharp from "sharp";
+
+const { pixels, width, height } = await og.renderPixels(copy);
+
+await sharp(pixels, { raw: { width, height, channels: 4 } })
+  .jpeg({ quality: 80 })
+  .toFile("public/og-image.jpg");
+```
+
+The bytes are row-major RGBA, `width * height * 4` long, and the same shape
+`@jsquash/jpeg`, `@jsquash/webp`, and `sharp` all accept.
+
+Two things to know when leaving PNG behind: point `imagePath` at the extension
+actually written, so `socialImage` and `socialImageMetadata` describe the real
+file, and note that `metaplate verify` reads PNG headers only — a JPEG or WebP
+card is not covered by it.
+
 ### Astro, SvelteKit, Remix, and other Fetch-based routes
 
 `handler` returns a standard Fetch API handler. For an Astro endpoint:
