@@ -5,6 +5,70 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+### Added
+
+- An `origin` option on `socialImage`, `socialImageMetadata`, and every plate
+definition, producing crawler-ready absolute image URLs while untouched
+relative paths stay the default. `basePath`, route, and `imagePath` compose
+beneath it.
+- A `format` form of `output` on `createNodeOg`. The media type derives from
+it, the encoded bytes' signature is checked against it on every render, and
+the media type is carried into metadata (`og:image:type` / `twitter:image:type`)
+and the descriptor `type`. A declared-but-unrecognized format opts out
+through `contentType` + `checkSignature: false`.
+- `--format png|jpeg|webp` on `metaplate verify`, so a `.jpg` file that
+actually holds WebP or PNG fails the build check instead of slipping past the
+format-agnostic dimension check.
+
+### Changed
+
+- **Breaking:** A plate renders exactly one size. The per-render `size`
+override is removed from `render`, `renderSvg`, `renderPixels`, `response`,
+and the Next adapter; `plate.size` is both the definition sizeand the size metadata advertises ([#49]).
+- **Breaking:** `output` on `createNodeOg` now takes `format` (deriving
+`contentType`) or `contentType` + `checkSignature: false` for unknown
+formats; a bare `contentType` is rejected.
+- `metaplate verify` reports every failing target and exits non-zero once,
+instead of stopping at the first bad file ([#55]).
+- Size validation is shared across metadata helpers, plate definitions, and
+the CLI: dimensions must be integers from 1 to 65535, and the CLI rejects
+numeric overflow to `Infinity` as well as zero ([#53]).
+
+### Fixed
+
+- `packageFontLoader` no longer memoizes a rejected load; a later call after
+the package or file is fixed succeeds without recreating the loader ([#52]),
+and it now accepts a `resolvePackage` hook for installs without a
+conventional `node_modules` layout, such as Yarn Plug'n'Play ([#58]).
+- `metaplate/render` and `metaplate/node` declare `component` against a local
+  `SatoriNode` element-tree type instead of React's `ReactNode`, so a
+  TypeScript consumer can author a plain-object plate without React types
+  installed. The package verification compiles a React-free TypeScript
+  consumer against the packed package ([#59]).
+- Truncated images no longer pass `metaplate verify` when their dimension
+header survives: PNG chunk walks to IEND with at least one IDAT, JPEG walks
+to a terminal EOI, and WebP requires the declared RIFF size to match the
+available bytes and every chunk to stay inside it ([#50]).
+- `socialImagePath` rejects query strings, fragments, and `.`/`..` segments
+in `route`, `basePath`, and `imagePath` instead of silently emitting a URL
+that normalizes somewhere else ([#57]).
+
+### Documentation
+
+- Static-host guidance derives the `Content-Type` from the plate's output
+(JPEG/WebP examples) rather than hard-coding `image/png`, and the description
+reflects that `render` may return any consumer-encoded format ([#54]).
+
+[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.4.1...HEAD
+[#49]: https://github.com/lnorton89/metaplate/issues/49
+[#50]: https://github.com/lnorton89/metaplate/issues/50
+[#52]: https://github.com/lnorton89/metaplate/issues/52
+[#53]: https://github.com/lnorton89/metaplate/issues/53
+[#54]: https://github.com/lnorton89/metaplate/issues/54
+[#57]: https://github.com/lnorton89/metaplate/issues/57
+[#58]: https://github.com/lnorton89/metaplate/issues/58
+[#59]: https://github.com/lnorton89/metaplate/issues/59
+
 ## [0.4.1] - 2026-08-24
 
 ### Fixed

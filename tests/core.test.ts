@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_IMAGE_DIMENSION,
   OG_SIZE,
   socialImage,
   socialImageMetadata,
@@ -32,6 +33,23 @@ describe("socialImagePath", () => {
     expect(() => socialImagePath("/docs", "///")).toThrow(/imagePath/);
   });
 
+  it.each([
+    ["/docs?lang=en", "?", undefined, undefined],
+    ["/docs#api", "#", undefined, undefined],
+    ["/docs/../admin", "..", undefined, undefined],
+    ["/docs/./learn", ".", undefined, undefined],
+  ])("rejects query, fragment, and dot segments in %s", (route, needle) => {
+    expect(() => socialImagePath(route)).toThrow(
+      new RegExp(needle!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+  });
+
+  it("rejects query and fragment in basePath and imagePath", () => {
+    expect(() => socialImagePath("/docs", "og.png", "/proj?x=1")).toThrow(/basePath/);
+    expect(() => socialImagePath("/docs", "og?x=1", "/proj")).toThrow(/imagePath/);
+    expect(() => socialImagePath("/docs", "og#x", "/proj")).toThrow(/imagePath/);
+  });
+
   it("handles long slash-delimited input in linear time", () => {
     const padding = "/".repeat(100_000);
     expect(socialImagePath(`${padding}docs${padding}`, `${padding}card${padding}`)).toBe(
@@ -58,8 +76,69 @@ it("builds a descriptor for a subpath deployment", () => {
   ).toBe("/project/guides/og-image.png");
 });
 
+it("carries the declared media type when one is given", () => {
+  expect(
+    socialImage("/roadmap", "Roadmap card", { type: "image/jpeg" }).type,
+  ).toBe("image/jpeg");
+  expect(
+    socialImageMetadata("/roadmap", "Roadmap card").openGraph.images[0]?.type,
+  ).toBeUndefined();
+});
+
+describe("origin", () => {
+  it("keeps relative paths by default", () => {
+    expect(socialImagePath("/docs", "og.png", "/project")).toBe("/project/docs/og.png");
+  });
+
+  it("produces absolute URLs from an origin", () => {
+    expect(
+      socialImageMetadata("/docs", "Docs", {
+        origin: "https://example.com",
+        basePath: "/project",
+        imagePath: "og.jpg",
+      }).openGraph.images[0]?.url,
+    ).toBe("https://example.com/project/docs/og.jpg");
+  });
+
+  it("tolerates an origin with a trailing slash", () => {
+    expect(
+      socialImage("/", "Home", { origin: "https://example.com/", imagePath: "og.png" }).url,
+    ).toBe("https://example.com/og.png");
+  });
+
+  it.each(["ftp://example.com", "not-a-url", "https://example.com/base", "https://example.com?a=1"])(
+    "rejects origin %s",
+    (origin) => {
+      expect(() => socialImage("/", "Home", { origin })).toThrow(/origin/i);
+    },
+  );
+});
+
 it("reuses one descriptor for Open Graph and Twitter metadata", () => {
   const metadata = socialImageMetadata("/", "Home card");
   expect(metadata.twitter.card).toBe("summary_large_image");
   expect(metadata.twitter.images[0]).toEqual(metadata.openGraph.images[0]);
+});
+
+describe("size validation", () => {
+  it.each([
+    { width: 0, height: 630 },
+    { width: -1200, height: 630 },
+    { width: 1200.5, height: 630 },
+    { width: Number.NaN, height: 630 },
+    { width: Number.POSITIVE_INFINITY, height: 630 },
+    { width: 1200, height: Number.NEGATIVE_INFINITY },
+    { width: MAX_IMAGE_DIMENSION + 1, height: 630 },
+  ])("rejects invalid size %j", (size) => {
+    expect(() => socialImage("/", "Card", { size })).toThrow(/Invalid size: (width|height)/);
+    expect(() => socialImageMetadata("/", "Card", { size })).toThrow(/Invalid size/);
+  });
+
+  it("accepts the largest supported size", () => {
+    expect(
+      socialImage("/", "Card", {
+        size: { width: MAX_IMAGE_DIMENSION, height: MAX_IMAGE_DIMENSION },
+      }).width,
+    ).toBe(MAX_IMAGE_DIMENSION);
+  });
 });

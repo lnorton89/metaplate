@@ -162,7 +162,7 @@ try {
   `;
   runModule(nodeGuidance, consumer);
 
-  const resolverSmoke = `
+  const requireSmoke = `
     require.resolve("metaplate");
     require.resolve("metaplate/render");
     require.resolve("metaplate/node");
@@ -173,7 +173,7 @@ try {
   `;
   execFileSync(
     process.execPath,
-    ["--input-type=commonjs", "--eval", resolverSmoke],
+    ["--input-type=commonjs", "--eval", requireSmoke],
     { cwd: consumer, stdio: "inherit" },
   );
 
@@ -231,6 +231,51 @@ try {
     throw new Error("Installed CLI did not report a dimension mismatch.");
   }
 
+  const formatCheck = spawnSync(
+    process.execPath,
+    [cliPath, "verify", "--format", "jpeg", "--size", "1200x630", "card-lossy.webp"],
+    { cwd: consumer, encoding: "utf8" },
+  );
+  if (
+    formatCheck.status !== 1 ||
+    !formatCheck.stderr.includes("Expected jpeg 1200x630, received webp")
+  ) {
+    throw new Error("Installed CLI did not reject a format mismatch.");
+  }
+
+  // Issue #55: one bad file must not hide the rest. A truncated WebP plus a
+  // good JPEG in one run has to report both outcomes in one invocation.
+  const truncated = readFileSync(join(root, "tests", "fixtures", "card-lossy.webp")).subarray(
+    0,
+    250,
+  );
+  writeFileSync(join(consumer, "truncated.webp"), truncated);
+  const aggregate = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      "verify",
+      "--size",
+      "1200x630",
+      "truncated.webp",
+      "card.jpg",
+      "does-not-exist.webp",
+    ],
+    { cwd: consumer, encoding: "utf8" },
+  );
+  const report = `${aggregate.stdout}${aggregate.stderr}`;
+  if (
+    aggregate.status !== 1 ||
+    !report.includes("✓ card.jpg 1200x630") ||
+    !report.includes("✗ truncated.webp") ||
+    !report.includes("✗ does-not-exist.webp") ||
+    !report.includes("2 of 3 files failed verification")
+  ) {
+    throw new Error(
+      `Installed CLI did not aggregate failures across targets: ${report}`,
+    );
+  }
+
   // Shape two: the standalone consumer, which opts in to the renderer peers
   // and has to produce real PNG bytes from the packed tarball.
   install(standalone, [
@@ -238,6 +283,8 @@ try {
     peerSpecifier("satori"),
     peerSpecifier("@resvg/resvg-js"),
     peerSpecifier("@fontsource/inter"),
+    peerSpecifier("typescript"),
+    "@types/node",
   ]);
 
   const standaloneSmoke = `
@@ -273,6 +320,105 @@ try {
     verifyPng(await plate.render({ title: "Standalone" }), plate.size);
   `;
   runModule(standaloneSmoke, standalone);
+
+  // Issue #59: the README promises plain `{ type, props }` authoring with no
+  // React at all. Compile a TypeScript consumer against the packed package
+  // with no React/@types/react installed and a plain-object component; the
+  // type surface must carry it. (satori itself declares a ReactNode import,
+  // so the consumer compiler needs `skipLibCheck`.)
+  writeFileSync(
+    join(standalone, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        noEmit: true,
+        module: "nodenext",
+        moduleResolution: "nodenext",
+        skipLibCheck: true,
+        types: ["node"],
+      },
+      include: ["react-free.tsx"],
+    }),
+  );
+  writeFileSync(
+    join(standalone, "react-free.tsx"),
+    `
+    import { createSvgOg, type SatoriNode } from "metaplate/render";
+    import { socialImageMetadata } from "metaplate";
+
+    const plain: SatoriNode = {
+      type: "div",
+      props: {
+        style: { display: "flex", width: "100%", height: "100%" },
+        children: "card",
+      },
+    };
+
+    // A plain-object component must satisfy the definition without React.
+    const plate = createSvgOg({
+      component: () => plain,
+      alt: () => "card",
+      fonts: () => [],
+    });
+
+    export const metadata = socialImageMetadata("/", "card");
+    export default plate;
+  `,
+  );
+  const tsc = execFileSync(
+    process.execPath,
+    [join(standalone, "node_modules", "typescript", "bin", "tsc"), "-p", join(standalone, "tsconfig.json")],
+    { cwd: standalone, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
+  ).toString();
+  if (tsc.includes("error")) {
+    throw new Error(`TypeScript consumer failed to compile: ${tsc}`);
+  }
+
+  // Issue #58: a resolver-injection smoke — a font resolved through a
+  // supplied `resolvePackage` hook rather than node_modules.
+  const resolverSmoke = `
+    const { createRequire } = await import("node:module");
+    const { packageFontLoader } = await import("metaplate/fonts");
+    const { createNodeOg } = await import("metaplate/node");
+    const requireFrom = createRequire(import.meta.url);
+
+    const loader = packageFontLoader(
+      [{
+        name: "Inter",
+        package: "@fontsource/inter",
+        file: "files/inter-latin-700-normal.woff",
+        weight: 700,
+      }],
+      {
+        resolvePackage: () =>
+          requireFrom.resolve("@fontsource/inter/package.json").replace(
+            /[\\\\/]package\\.json$/,
+            "",
+          ),
+      },
+    );
+
+    const plate = createNodeOg({
+      alt: () => "card",
+      fonts: loader,
+      component: () => ({
+        type: "div",
+        props: {
+          style: {
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            fontFamily: "Inter",
+            fontSize: 64,
+          },
+          children: "Resolver",
+        },
+      }),
+    });
+
+    await plate.render({ title: "Resolver" });
+  `;
+  runModule(resolverSmoke, standalone);
 
   process.stdout.write(
     `Verified ${packed[0].filename} exports, CLI, and both consumer installs.\n`,
