@@ -200,3 +200,30 @@ it(
   },
   20_000,
 );
+
+// sharp and other native encoders return Buffers backed by a shared pool, so
+// the encoded bytes usually sit at a non-zero offset inside a larger
+// ArrayBuffer. `response` slices by that offset; getting it wrong would serve
+// neighbouring pool memory rather than the card.
+it(
+  "serves encoded bytes that sit at an offset inside a pooled buffer",
+  async () => {
+    // Buffer.from already allocates from Node's pool, so this view starts well
+    // inside a much larger ArrayBuffer rather than at zero.
+    const pool = Buffer.from([0xaa, 0xbb, 0xcc, 0xff, 0xd8, 0xff, 0xe0, 0x99]);
+    const encoded = pool.subarray(3, 7);
+    expect(encoded.byteOffset).toBeGreaterThan(0);
+    expect(encoded.buffer.byteLength).toBeGreaterThan(encoded.byteLength);
+
+    const plate = createNodeOg({
+      ...definition,
+      output: { contentType: "image/jpeg", encode: () => encoded },
+    });
+
+    const response = await plate.response({ title: "Pooled" });
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      Uint8Array.of(0xff, 0xd8, 0xff, 0xe0),
+    );
+  },
+  20_000,
+);
