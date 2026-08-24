@@ -102,6 +102,7 @@ try {
     await import("metaplate/next");
     await import("metaplate/fonts");
     await import("metaplate/png");
+    await import("metaplate/image");
   `;
   runModule(smoke, consumer);
 
@@ -167,6 +168,7 @@ try {
     require.resolve("metaplate/next");
     require.resolve("metaplate/fonts");
     require.resolve("metaplate/png");
+    require.resolve("metaplate/image");
   `;
   execFileSync(
     process.execPath,

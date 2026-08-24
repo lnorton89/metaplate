@@ -8,6 +8,7 @@ export default defineConfig({
     node: "src/node.ts",
     fonts: "src/fonts.ts",
     png: "src/png.ts",
+    image: "src/image.ts",
     cli: "src/cli.ts",
   },
   format: ["esm"],

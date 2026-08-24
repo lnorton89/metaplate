@@ -3,12 +3,12 @@
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 import { formatVerifyPath, parseVerifyTargets } from "./cli-args.js";
-import { verifyPng } from "./png.js";
+import { verifyImage } from "./image.js";
 
 async function main(args: string[]) {
   for (const { file, size } of parseVerifyTargets(args)) {
     const bytes = await readFile(file);
-    verifyPng(bytes, size);
+    verifyImage(bytes, size);
     process.stdout.write(`✓ ${formatVerifyPath(file)} ${size.width}x${size.height}\n`);
   }
 }
