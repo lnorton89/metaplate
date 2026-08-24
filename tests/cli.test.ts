@@ -42,6 +42,7 @@ describe("parseVerifyTargets", () => {
     { args: ["verify"] },
     { args: ["verify", "orphan.png"] },
     { args: ["verify", "--size", "wide", "image.png"] },
+    { args: ["verify", "--size", "0x630", "image.png"] },
   ] satisfies { args: string[] }[])("rejects invalid arguments: $args", ({ args }) => {
     expect(() => parseVerifyTargets(args)).toThrow(VERIFY_USAGE);
   });

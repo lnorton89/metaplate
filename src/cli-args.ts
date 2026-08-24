@@ -17,7 +17,15 @@ export function formatVerifyPath(file: string, cwd = process.cwd()): string {
 function parseSize(value: string | undefined) {
   const match = /^(\d+)x(\d+)$/.exec(value ?? "");
   if (!match) throw new Error(`Invalid size. ${VERIFY_USAGE}`);
-  return { width: Number(match[1]), height: Number(match[2]) };
+
+  const size = { width: Number(match[1]), height: Number(match[2]) };
+  // A PNG cannot declare a zero dimension, so accepting one only defers the
+  // rejection to a dimension mismatch that blames the file.
+  if (size.width === 0 || size.height === 0) {
+    throw new Error(`Invalid size. ${VERIFY_USAGE}`);
+  }
+
+  return size;
 }
 
 /** Parses one or more size-delimited groups of PNG paths. */
