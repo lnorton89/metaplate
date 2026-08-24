@@ -5,11 +5,14 @@ All notable changes to Metaplate are documented in this file. The project uses
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-24
+
 ### Documentation
 
 - Record that upgrading to 0.2.0 in place keeps Satori and Resvg on disk,
   because an installed package satisfies the now-optional peer, and that a
-  clean reinstall is what reclaims the space.
+  clean reinstall is what reclaims the space. The note ships in the package so
+  it reaches the npm page, where an upgrading consumer looks first.
 
 ## [0.2.0] - 2026-08-23
 
@@ -97,7 +100,8 @@ All notable changes to Metaplate are documented in this file. The project uses
 - Typed package exports for framework-neutral, rendering, Node.js, Next.js,
   font, and PNG entry points.
 
-[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lnorton89/metaplate/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/lnorton89/metaplate/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/lnorton89/metaplate/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/lnorton89/metaplate/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/lnorton89/metaplate/compare/v0.1.0...v0.1.1
