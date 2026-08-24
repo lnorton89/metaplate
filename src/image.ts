@@ -233,6 +233,8 @@ function anmfHasImageData(
   const end = frameOffset + frameLength;
   let offset = frameOffset + 16;
   let sawImage = false;
+  let sawImageBitstream = false;
+  let sawAlpha = false;
   while (offset + 8 <= end) {
     const child = ascii(bytes, offset, 4);
     const length = uint32LE(bytes, offset + 4);
@@ -244,7 +246,24 @@ function anmfHasImageData(
     if (child === "ANMF") {
       throw new Error("Not a WebP: ANMF frame cannot nest another ANMF frame");
     }
-    if (imageChunkHasData(bytes, offset, length, "in ANMF frame")) sawImage = true;
+    if (child === "ALPH") {
+      if (sawAlpha) {
+        throw new Error("Not a WebP: ANMF frame contains multiple ALPH chunks");
+      }
+      if (sawImageBitstream) {
+        throw new Error("Not a WebP: ANMF ALPH chunk must precede image data");
+      }
+      sawAlpha = true;
+    }
+    if (child === "VP8 " || child === "VP8L") {
+      if (sawImageBitstream) {
+        throw new Error("Not a WebP: ANMF frame contains multiple image bitstreams");
+      }
+      sawImageBitstream = true;
+    }
+    if (imageChunkHasData(bytes, offset, length, "in ANMF frame")) {
+      sawImage = true;
+    }
     offset += 8 + length + (length % 2);
   }
   if (offset !== end) {

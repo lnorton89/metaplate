@@ -335,6 +335,81 @@ describe("imageDimensions", () => {
     expect(imageDimensions(webp)).toEqual({ width: 1200, height: 630, format: "webp" });
   });
 
+  it("rejects an ANMF frame with multiple image bitstreams", () => {
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const vp8l = [
+      0x56, 0x50, 0x38, 0x4c, // "VP8L"
+      0x05, 0x00, 0x00, 0x00, // chunk length 5
+      0x2f, 0xaf, 0x44, 0x9d, 0x00,
+      0x00, // alignment padding
+    ];
+    const anmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x2c, 0x00, 0x00, 0x00, // 16-byte header + two 14-byte VP8L chunks
+      ...Array(16).fill(0),
+      ...vp8l,
+      ...vp8l,
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x4a, 0x00, 0x00, 0x00, // declared RIFF size: 82 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...anmf,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/multiple image bitstreams/);
+  });
+
+  it("rejects an ANMF frame with duplicate ALPH chunks", () => {
+    const canvas = (value: number) => [
+      value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff,
+    ];
+    const vp8x = [
+      0x56, 0x50, 0x38, 0x58, // "VP8X"
+      0x0a, 0x00, 0x00, 0x00, // chunk length 10
+      0x00, 0x00, 0x00, 0x00, // flags + reserved
+      ...canvas(1199), // width - 1
+      ...canvas(629), // height - 1
+    ];
+    const alph = [
+      0x41, 0x4c, 0x50, 0x48, // "ALPH"
+      0x01, 0x00, 0x00, 0x00, // chunk length 1
+      0x00,
+      0x00, // alignment padding
+    ];
+    const vp8l = [
+      0x56, 0x50, 0x38, 0x4c, // "VP8L"
+      0x05, 0x00, 0x00, 0x00, // chunk length 5
+      0x2f, 0xaf, 0x44, 0x9d, 0x00,
+      0x00, // alignment padding
+    ];
+    const anmf = [
+      0x41, 0x4e, 0x4d, 0x46, // "ANMF"
+      0x32, 0x00, 0x00, 0x00, // 16-byte header + two ALPH chunks + VP8L
+      ...Array(16).fill(0),
+      ...alph,
+      ...alph,
+      ...vp8l,
+    ];
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      0x50, 0x00, 0x00, 0x00, // declared RIFF size: 88 - 8
+      0x57, 0x45, 0x42, 0x50, // "WEBP"
+      ...vp8x,
+      ...anmf,
+    ]);
+    expect(() => imageDimensions(webp)).toThrow(/multiple ALPH chunks/);
+  });
+
   it("rejects an ANMF frame whose second sub-chunk overruns the frame", () => {
     // A plausible first VP8L image must not let a malformed tail hide: the
     // whole frame is walked, so the second sub-chunk's overrun is caught.
