@@ -8,13 +8,11 @@
 
 Composable, framework-neutral Open Graph image tooling for TypeScript.
 
-Metaplate turns one branded JSX plate into a consistent image system: SVG and
-raster rendering (PNG by default, any format an encoder produces), Fetch API
-responses, predictable image URLs, configurable Open Graph and X metadata,
-project-, framework-, and package-managed font loading, and image verification.
-It works with plain Node, Node-compatible framework adapters, static build
-scripts, and Next.js. Runtime
-compatibility depends on both the framework and its deployment adapter.
+Define your social images once. Render, serve, and publish them consistently across your TypeScript app.
+
+Metaplate turns a single branded JSX plate into the complete Open Graph image pipeline. Use the same definition to render SVG or raster images, serve them from Node-compatible routes, generate matching Open Graph and X metadata, manage fonts, produce predictable image URLs, and verify the files you ship.
+
+It works with plain Node, static build scripts, Next.js, and Node-compatible framework adapters, without tying your image design to a single framework.
 
 ## Contents
 
@@ -35,6 +33,7 @@ compatibility depends on both the framework and its deployment adapter.
 - [Fonts](#fonts)
 - [Plate constraints](#plate-constraints)
 - [Static hosts](#static-hosts)
+- [Deployment routes](#deployment-routes)
 - [Verify generated files](#verify-generated-files)
 - [Entry points](#entry-points)
 - [Design lineage](#design-lineage)
@@ -106,13 +105,24 @@ export const og = createNodeOg<{ title: string; alt: string }>({
 });
 ```
 
-The resulting plate supports three output forms:
+The resulting plate supports rendering, a complete artifact, and Fetchable route forms:
 
 ```ts
 const png: Uint8Array = await og.render(copy);
 const svg: string = await og.renderSvg(copy);
+const artifact = await og.artifact("/posts/hello", copy);
 const response: Response = await og.response(copy);
+const fetchable = og.fetchableFrom((request: Request) => ({
+  title: new URL(request.url).pathname,
+  alt: "Social card",
+}));
 ```
+
+`artifact` renders the bytes and matching descriptor metadata from the same copy.
+Node responses own `Content-Type`, `Content-Length`, and `Content-Encoding`; pass
+only unrelated headers such as `Cache-Control`. Set `etag: "sha256"` on the
+plate when responses should carry a deterministic strong ETag based on the final
+encoded bytes.
 
 Rendering is safe to call concurrently. Satori is a pure call, each render
 builds its own Resvg instance, and the font loaders memoize one shared copy
@@ -178,7 +188,8 @@ const { pixels, width, height } = await og.renderPixels(copy);
 
 Point `imagePath` at the extension actually written, so `socialImage` and
 `socialImageMetadata` describe the real file. `metaplate verify` reads PNG,
-JPEG, and WebP, so the build check follows the card whichever format it takes.
+JPEG, WebP, or structurally walked GIF files, so the build check follows the
+card whichever format it takes.
 
 ### Fetch-based framework routes
 
@@ -268,7 +279,7 @@ set actually exercised by the release gate.
 | Integration | Official framework reference | Supported runtime | Release evidence |
 | --- | --- | --- | --- |
 | `metaplate/next` | [Metadata and OG images](https://nextjs.org/docs/app/getting-started/metadata-and-og-images), [metadata files](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/opengraph-image), and [static exports](https://nextjs.org/docs/app/guides/static-exports) | Next.js 16.3.2–16.x Node/build pipeline | Exact packed artifact is built through a real Next static export in the release gate. Next 15 is not claimed because its remaining dependency advisories fail this project's release audit. |
-| Astro static endpoints | [Static and server endpoints](https://docs.astro.build/en/guides/endpoints/) | Astro 7 build on Node 24 | Exact packed artifact produces the endpoint, PNG bytes, dimensions, and absolute page metadata. |
+| Astro static endpoints | [Static and server endpoints](https://docs.astro.build/en/guides/endpoints/) | Astro 7 build on Node 24 | Exact packed artifact produces the endpoint, PNG bytes, dimensions, and separately tested page metadata. |
 | React Router resource routes | [Resource routes](https://reactrouter.com/how-to/resource-routes) | React Router 7 framework mode on Node | Exact packed artifact is type-generated, typechecked, built, served, and fetched through a dynamic `loader(args)` route. |
 | SvelteKit | [`+server` routing](https://svelte.dev/docs/kit/routing#server) and [`adapter-node`](https://svelte.dev/docs/kit/adapter-node) | Node-compatible adapters | `handlerFrom` follows its `RequestHandler` contract, but certification is deferred while the latest stable Kit line retains an upstream Cookie advisory. |
 | Express | [Express 5 response API](https://expressjs.com/en/5x/api/#res.send) | Express 5 on Node | Exact packed artifact is served over an ephemeral HTTP server and checked for headers, bytes, and dimensions. |
@@ -317,6 +328,12 @@ const og = createNodeOg({
       h("div", { style: { fontSize: 72 } }, copy.title),
     ),
 });
+
+const copy = {
+  eyebrow: "Project guide",
+  title: "Build-time social image",
+  alt: "Project guide social card",
+};
 
 await writeFile("public/og-image.png", await og.render(copy));
 ```
@@ -765,9 +782,21 @@ for = "/*/og-image"
 
 A JPEG plate uses `Content-Type = "image/jpeg"` for the same two paths.
 
+## Deployment routes
+
+For provider-neutral guidance covering static generation, Vercel and Netlify Node
+functions, Railway and Render services, GitHub Pages, and edge-runtime limits,
+see the [deployment routes guide](docs/deployment.md). The release's current
+route evidence and certification status lives in
+[`deployment-evidence.json`](deployment-evidence.json). The short version is:
+use a real `.png`/`.jpg` file for static hosts, use the provider's Node runtime
+for `metaplate/node`, and do not deploy the native renderer to an Edge/Workers
+runtime without a separately tested Wasm-compatible renderer.
+
 ## Verify generated files
 
-`metaplate verify` reads dimensions from SVG roots and PNG, JPEG, or WebP
+`metaplate verify` reads dimensions from SVG roots and PNG, JPEG, WebP, or
+structurally walked GIF files
 container headers. It runs a structural/truncation check: raster chunk streams
 are walked through image data to their terminator, while SVG roots must declare
 safe, positive pixel dimensions (without XML entity expansion). Obvious header
@@ -804,8 +833,14 @@ npx metaplate verify --format jpeg --size 1200x630 out/og-image.jpg
 ```
 
 Or import `verifyImage` from `metaplate/image` in a test, which returns the
-format it verified alongside the dimensions. `metaplate/png` remains available
-for PNG-only checks.
+format it verified alongside the dimensions. For a single application/reporting
+contract, use `verifySocialImage(bytes, descriptor, { targets: [...] })` to catch
+byte/metadata format and dimension mismatches alongside target compatibility
+findings. Add `--json --target linkedin --url https://example.com/og.png --alt
+\"Project card\"` to the CLI for machine-readable deployment checks. A target
+without `--url` or `--alt` verifies only image/platform facts and does not invent
+metadata; those fields are checked only when supplied.
+`metaplate/png` remains available for PNG-only checks.
 
 ## Entry points
 
@@ -822,7 +857,7 @@ for PNG-only checks.
   application-byte font loading for Node-compatible runtimes. No peers.
 - `metaplate/png` — PNG header inspection and dimension verification. No peers.
 - `metaplate/image` — dimension and structural verification for SVG, PNG,
-  JPEG, and WebP. No peers.
+  JPEG, WebP, and GIF. No peers.
 
 ## Design lineage
 

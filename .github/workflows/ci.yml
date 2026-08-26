@@ -29,6 +29,23 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run check
       - run: npm run check:package
+      - name: Write dependency and release evidence
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          npm run release:evidence
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-and-release-evidence
+          path: |
+            dependency-inventory.json
+            release-evidence-report.json
+            release-check-results.json
+            deployment-contract-evidence.json
+            deployment-evidence.json
+            socket-score-report.json
+            socket-dispositions.json
+          if-no-files-found: error
       - name: Exercise the post-publication verifier against the local artifact
         shell: bash
         run: |

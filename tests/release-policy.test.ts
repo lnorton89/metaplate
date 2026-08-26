@@ -1,0 +1,217 @@
+import { describe, expect, it } from "vitest";
+import { packageNameFromLockPath } from "../scripts/dependency-model.mjs";
+import { validateDeploymentManifest } from "../scripts/verify-deployment-evidence.mjs";
+import { validateSocketReport } from "../scripts/verify-socket-dispositions.mjs";
+import { validateCheckResults } from "../scripts/release-evidence-report.mjs";
+
+const baseDeployment = {
+  schemaVersion: 1,
+  release: "0.7.0",
+  policy: {
+    certifiedRequires: [
+      "packed-artifact",
+      "production-build",
+      "served-or-published-output",
+      "image-format-and-dimension-check",
+      "response-header-check",
+    ],
+    edgeNativeRendererRequired: true,
+  },
+  routes: [],
+};
+
+const certifiedRoute = {
+  id: "provider-node",
+  provider: "Example",
+  runtime: "Node.js",
+  status: "certified",
+  evidence: "claim",
+  certification: {
+    packedArtifact: true,
+    productionBuild: true,
+    output: true,
+    imageVerification: { verified: true },
+    responseVerification: { verified: true },
+    providerVersion: "1.0",
+    runtimeVersion: "node-24",
+    commitSha: "abc123",
+    evidenceUrlOrArtifact: "artifact.zip",
+  },
+};
+
+const baseSocket = {
+  schemaVersion: 2,
+  package: "metaplate",
+  source: "https://socket.dev/npm/package/metaplate/alerts/0.6.0",
+  version: "0.6.0",
+  status: "complete",
+  releasePolicy: {
+    blockSeverities: ["critical"],
+    requireDispositionSeverities: ["high", "critical"],
+    allowedDispositionTypes: ["upgrade", "replace", "remove", "isolate", "accepted-with-evidence"],
+    acceptedExceptionRequires: ["owner", "reason", "expiry", "verification"],
+  },
+  alerts: [],
+  export: {
+    artifact: "missing-score-report.json",
+    generatedAt: "2026-08-25",
+    sha256: "placeholder",
+  },
+};
+
+describe("deployment evidence policy", () => {
+  it("accepts a certified route only with complete evidence", () => {
+    const errors = validateDeploymentManifest({
+      ...baseDeployment,
+      routes: [{
+        id: "provider-node",
+        provider: "Example",
+        runtime: "Node.js",
+        status: "certified",
+        evidence: "release runner",
+        certification: {
+          packedArtifact: true,
+          productionBuild: true,
+          output: true,
+          imageVerification: { verified: true },
+          responseVerification: { verified: true },
+          providerVersion: "1.0",
+          runtimeVersion: "node-24",
+          commitSha: "abc123",
+          evidenceUrlOrArtifact: "artifact.zip",
+        },
+      }],
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("enforces newly declared policy requirements", () => {
+    const errors = validateDeploymentManifest({
+      ...baseDeployment,
+      policy: {
+        ...baseDeployment.policy,
+        certifiedRequires: [...baseDeployment.policy.certifiedRequires, "custom-evidence"],
+      },
+      routes: [certifiedRoute],
+    });
+    expect(errors).toContain("policy.certifiedRequires contains unknown requirement custom-evidence");
+  });
+
+  it("rejects certified routes with missing evidence and unknown statuses", () => {
+    const missing = validateDeploymentManifest({
+      ...baseDeployment,
+      routes: [{
+        id: "provider-node",
+        provider: "Example",
+        runtime: "Node.js",
+        status: "certified",
+        evidence: "claim",
+        certification: {},
+      }],
+    });
+    expect(missing.some((error) => error.includes("packedArtifact"))).toBe(true);
+    expect(validateDeploymentManifest({ ...baseDeployment, routes: [{ id: "x", provider: "x", runtime: "Node", status: "claimed" }] })).toContain("x: unknown status claimed");
+  });
+});
+
+describe("Socket release policy", () => {
+  const alert = (overrides: Record<string, unknown> = {}) => ({
+    type: "malware",
+    severity: "high",
+    package: "example",
+    version: "1.0.0",
+    path: "metaplate > example",
+    reachability: "development-only",
+    evidence: "socket.json",
+    verification: "npm test",
+    disposition: "upgrade",
+    ...overrides,
+  });
+
+  it("requires dispositions for policy severities and rejects unknown values", () => {
+    expect(validateSocketReport({ ...baseSocket, alerts: [alert({ disposition: undefined })] })).toContain("alert 0: disposition required for high");
+    expect(validateSocketReport({ ...baseSocket, alerts: [alert({ severity: "urgent" })] }).some((e: string) => e.includes("severity") && e.includes("urgent"))).toBe(true);
+    expect(validateSocketReport({ ...baseSocket, alerts: [alert({ disposition: "ignore" })] }).some((error: string) => error.includes("disposition") && error.includes("ignore"))).toBe(true);
+  });
+
+  it("blocks critical findings even with a syntactically valid disposition", () => {
+    const errors = validateSocketReport({ ...baseSocket, alerts: [alert({ severity: "critical", disposition: "upgrade" })] });
+    expect(errors.some((error) => error.includes("critical findings block release"))).toBe(true);
+  });
+
+  it("rejects tampered release policy that weakens the executable policy", () => {
+    // blockSeverities emptied
+    expect(validateSocketReport({ ...baseSocket, releasePolicy: { ...baseSocket.releasePolicy, blockSeverities: [] } })).toContain("blockSeverities has 0 entries, expected 1");
+    // blockSeverities changed to high
+    expect(validateSocketReport({ ...baseSocket, releasePolicy: { ...baseSocket.releasePolicy, blockSeverities: ["high"] } })).toContain("blockSeverities entry high is not in the expected set");
+    // requireDispositionSeverities weakened
+    expect(validateSocketReport({ ...baseSocket, releasePolicy: { ...baseSocket.releasePolicy, requireDispositionSeverities: ["high"] } })).toContain("requireDispositionSeverities has 1 entries, expected 2");
+    // allowedDispositionTypes extended with ignore
+    expect(validateSocketReport({ ...baseSocket, releasePolicy: { ...baseSocket.releasePolicy, allowedDispositionTypes: [...baseSocket.releasePolicy.allowedDispositionTypes, "ignore"] } }).some((e: string) => e.includes("allowedDispositionTypes") && e.includes("6 entries"))).toBe(true);
+    // acceptedExceptionRequires weakened
+    expect(validateSocketReport({ ...baseSocket, releasePolicy: { ...baseSocket.releasePolicy, acceptedExceptionRequires: ["verification"] } })).toContain("acceptedExceptionRequires has 1 entries, expected 4");
+    // missing entirely
+    expect(validateSocketReport({ ...baseSocket, releasePolicy: undefined })).toContain("releasePolicy is missing");
+  });
+
+  it("critical findings cannot be made releasable by editing blockSeverities", () => {
+    // Even with empty blockSeverities, critical should still be checked against pinned policy
+    const report = { ...baseSocket, releasePolicy: { ...baseSocket.releasePolicy, blockSeverities: [] } };
+    const errors = validateSocketReport(report);
+    expect(errors.some((e) => e.includes("blockSeverities"))).toBe(true);
+  });
+
+  it("rejects expired accepted exceptions", () => {
+    const accepted = alert({
+      disposition: "accepted-with-evidence",
+      owner: "security",
+      reason: "upstream fix pending",
+      expiry: "2020-01-01T00:00:00Z",
+      verification: "isolated in CI",
+    });
+    expect(validateSocketReport({ ...baseSocket, alerts: [accepted] }).some((error: string) => error.includes("accepted exception is expired"))).toBe(true);
+  });
+});
+
+describe("release evidence consistency", () => {
+  it("marks deployment policy errors as blocking", () => {
+    const invalid = { ...baseDeployment, routes: [{ id: "bad", provider: "x", runtime: "Node", status: "claimed", evidence: "x" }] };
+    expect(validateDeploymentManifest(invalid).length).toBeGreaterThan(0);
+  });
+});
+
+describe("release check evidence", () => {
+  const checks = [
+    "production-build",
+    "packed-artifact",
+    "dependency-inventory",
+    "deployment-evidence-policy",
+    "socket-release-policy",
+  ].map((name) => ({ name, status: "passed" }));
+
+  it("requires every expected check exactly once and passed", () => {
+    expect(validateCheckResults({ schemaVersion: 1, commitSha: "abc", releaseVersion: "0.6.0", checks }, { commitSha: "abc", releaseVersion: "0.6.0" })).toEqual(checks);
+  });
+
+  it("rejects incomplete, duplicate, unknown, and non-passed check sets", () => {
+    const cases = [
+      [],
+      checks.slice(1),
+      [...checks, checks[0]!],
+      [...checks.slice(0, 4), { name: "unknown", status: "passed" }],
+      [...checks.slice(0, 4), { name: "socket-release-policy", status: "unknown" }],
+    ];
+    for (const invalidChecks of cases) {
+      expect(() => validateCheckResults({ schemaVersion: 1, commitSha: "abc", releaseVersion: "0.6.0", checks: invalidChecks }, { commitSha: "abc", releaseVersion: "0.6.0" })).toThrow();
+    }
+  });
+});
+
+describe("lockfile package identity", () => {
+  it("extracts the innermost package from nested unscoped and scoped paths", () => {
+    expect(packageNameFromLockPath("node_modules/@babel/core/node_modules/semver")).toBe("semver");
+    expect(packageNameFromLockPath("node_modules/@react-router/dev/node_modules/confbox")).toBe("confbox");
+    expect(packageNameFromLockPath("node_modules/@react-router/dev/node_modules/pkg-types/node_modules/pathe")).toBe("pathe");
+    expect(packageNameFromLockPath("node_modules/@scope/package")).toBe("@scope/package");
+  });
+});
